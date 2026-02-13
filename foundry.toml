@@ -7,6 +7,13 @@ libs = ['lib']
 remappings = [
 ]
 fs_permissions = [{access = "write", path = "./reports"}]
+optimizer = true
+optimizer_runs = 200000
+via_ir = false
+skip = ["Upgrade.t.sol", "StaticATokenNoLM.t.sol"]
+
+[profile.all]
+skip = []
 
 [rpc_endpoints]
 mainnet = "${RPC_MAINNET}"
@@ -22,6 +29,7 @@ zkevm = "${RPC_ZKEVM}"
 gnosis = "${RPC_GNOSIS}"
 bnb = "${RPC_BNB}"
 scroll="${RPC_SCROLL}"
+monad="${RPC_MONAD}"
 
 [etherscan]
 mainnet = { key="${ETHERSCAN_API_KEY_MAINNET}", chain=1 }
@@ -29,12 +37,13 @@ optimism = { key="${ETHERSCAN_API_KEY_OPTIMISM}", chain=10 }
 avalanche = { key="${ETHERSCAN_API_KEY_AVALANCHE}", chain=43114 }
 polygon = { key="${ETHERSCAN_API_KEY_POLYGON}", chain=137 }
 arbitrum = { key="${ETHERSCAN_API_KEY_ARBITRUM}", chain=42161 }
-fantom = { key="${ETHERSCAN_API_KEY_FANTOM}", chain=250 }
+fantom = { key="${ETHERSCAN_API_KEY_FANTOM}", chain=250, url="https://api.ftmscan.com/api" }
 metis = { key="any", chainId=1088, url='https://andromeda-explorer.metis.io/' }
 base = { key="${ETHERSCAN_API_KEY_BASE}", chainId=8453 }
-zkevm = { key="${ETHERSCAN_API_KEY_ZKEVM}", chainId=1101 }
+zkevm = { key="${ETHERSCAN_API_KEY_ZKEVM}", chainId=1101, url="https://api-zkevm.polygonscan.com/api" }
 gnosis = { key="${ETHERSCAN_API_KEY_GNOSIS}", chainId=100 }
 bnb= { key="${ETHERSCAN_API_KEY_BNB}",chainId=56,url='https://api.bscscan.com/api'}
 scroll = {key="${ETHERSCAN_API_KEY_SCROLL}", chainId=534352}
+monad = {key="${ETHERSCAN_API_KEY_MONAD}", chainId=143, url="https://api.etherscan.io/v2/api"}
 
 # See more config options https://github.com/gakonst/foundry/tree/master/config

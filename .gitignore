@@ -9,8 +9,9 @@ out/
 .idea
 .vscode
 
-# well, looks strange to ignore package-lock, but we have only pretter and it's temproray
+# well, looks strange to ignore package-lock, but we have only prettier and it's temproray
 package-lock.json
 node_modules
+references
 
 broadcast
