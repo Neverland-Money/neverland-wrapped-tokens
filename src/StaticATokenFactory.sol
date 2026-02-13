@@ -48,17 +48,15 @@ contract StaticATokenFactory is Initializable, IStaticATokenFactory {
       if (cachedStaticAToken == address(0)) {
         DataTypes.ReserveData memory reserveData = POOL.getReserveData(underlyings[i]);
         require(reserveData.aTokenAddress != address(0), 'UNDERLYING_NOT_LISTED');
-        bytes memory symbol = abi.encodePacked(
-          'stat',
-          IERC20Metadata(reserveData.aTokenAddress).symbol()
-        );
+        string memory underlyingSymbol = IERC20Metadata(underlyings[i]).symbol();
+        bytes memory symbol = abi.encodePacked('w', IERC20Metadata(reserveData.aTokenAddress).symbol());
         address staticAToken = TRANSPARENT_PROXY_FACTORY.createDeterministic(
           STATIC_A_TOKEN_IMPL,
           ADMIN,
           abi.encodeWithSelector(
             StaticATokenLM.initialize.selector,
             reserveData.aTokenAddress,
-            string(abi.encodePacked('Static ', IERC20Metadata(reserveData.aTokenAddress).name())),
+            string(abi.encodePacked('Wrapped Neverland ', underlyingSymbol)),
             string(symbol)
           ),
           bytes32(uint256(uint160(underlyings[i])))

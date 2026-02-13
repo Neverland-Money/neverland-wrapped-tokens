@@ -23,7 +23,7 @@ contract StaticATokenLMTest is BaseTest {
 
   address[] rewardTokens;
 
-  function REWARD_TOKEN() public returns (address) {
+  function REWARD_TOKEN() public view returns (address) {
     return rewardTokens[0];
   }
 
@@ -41,8 +41,12 @@ contract StaticATokenLMTest is BaseTest {
   }
 
   function test_getters() public {
-    assertEq(staticATokenLM.name(), 'Static Aave Avalanche WETH');
-    assertEq(staticATokenLM.symbol(), 'stataAvaWETH');
+    string memory expectedSymbol = string(abi.encodePacked('w', IERC20Metadata(A_TOKEN).symbol()));
+    string memory expectedName = string(
+      abi.encodePacked('Wrapped Neverland ', IERC20Metadata(UNDERLYING).symbol())
+    );
+    assertEq(staticATokenLM.name(), expectedName);
+    assertEq(staticATokenLM.symbol(), expectedSymbol);
 
     IERC20 aToken = staticATokenLM.aToken();
     assertEq(address(aToken), A_TOKEN);
@@ -113,26 +117,28 @@ contract StaticATokenLMTest is BaseTest {
     assertApproxEqAbs(IERC20(UNDERLYING).balanceOf(user1), amountToDeposit, 1);
   }
 
-  function testFail_redeemOverflowAllowance() public {
+  function test_redeemOverflowAllowance_reverts() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
 
     _depositAToken(amountToDeposit, user);
 
-    staticATokenLM.approve(user1, staticATokenLM.maxRedeem(user) / 2);
+    uint256 maxRedeem = staticATokenLM.maxRedeem(user);
+    staticATokenLM.approve(user1, maxRedeem / 2);
     vm.stopPrank();
     vm.startPrank(user1);
-    staticATokenLM.redeem(staticATokenLM.maxRedeem(user), user1, user);
-    assertEq(staticATokenLM.balanceOf(user), 0);
-    assertEq(IERC20(A_TOKEN).balanceOf(user1), amountToDeposit);
+    vm.expectRevert();
+    staticATokenLM.redeem(maxRedeem, user1, user);
   }
 
-  function testFail_redeemAboveBalance() public {
+  function test_redeemAboveBalance_reverts() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
 
     _depositAToken(amountToDeposit, user);
-    staticATokenLM.redeem(staticATokenLM.maxRedeem(user) + 1, user, user);
+    uint256 maxRedeem = staticATokenLM.maxRedeem(user);
+    vm.expectRevert();
+    staticATokenLM.redeem(maxRedeem + 1, user, user);
   }
 
   // Withdraw tests
@@ -149,16 +155,22 @@ contract StaticATokenLMTest is BaseTest {
     assertApproxEqAbs(IERC20(UNDERLYING).balanceOf(user), amountToDeposit, 1);
   }
 
-  function testFail_withdrawAboveBalance() public {
+  function test_withdrawAboveBalance_reverts() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
     _fundUser(amountToDeposit, user1);
 
     _depositAToken(amountToDeposit, user);
+    vm.stopPrank();
+    vm.startPrank(user1);
     _depositAToken(amountToDeposit, user1);
+    vm.stopPrank();
+    vm.startPrank(user);
 
-    assertEq(staticATokenLM.maxWithdraw(user), amountToDeposit);
-    staticATokenLM.withdraw(staticATokenLM.maxWithdraw(user) + 1, user, user);
+    uint256 maxWithdraw = staticATokenLM.maxWithdraw(user);
+    assertApproxEqAbs(maxWithdraw, amountToDeposit, 1);
+    vm.expectRevert();
+    staticATokenLM.withdraw(maxWithdraw + 1, user, user);
   }
 
   // mint
@@ -172,12 +184,13 @@ contract StaticATokenLMTest is BaseTest {
     assertEq(shares, staticATokenLM.balanceOf(user));
   }
 
-  function testFail_mintAboveBalance() public {
+  function test_mintAboveBalance_reverts() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
 
     _underlyingToAToken(amountToDeposit, user);
     IERC20(A_TOKEN).approve(address(staticATokenLM), amountToDeposit);
+    vm.expectRevert();
     staticATokenLM.mint(amountToDeposit, user);
   }
 
@@ -225,7 +238,7 @@ contract StaticATokenLMTest is BaseTest {
   }
 
   // should fail as user1 is not a valid claimer
-  function testFail_claimRewardsOnBehalfOf() public {
+  function test_claimRewardsOnBehalfOf_revertsForUnauthorizedClaimer() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
 
@@ -236,7 +249,8 @@ contract StaticATokenLMTest is BaseTest {
     vm.stopPrank();
     vm.startPrank(user1);
 
-    uint256 claimable = staticATokenLM.getClaimableRewards(user, REWARD_TOKEN());
+    staticATokenLM.getClaimableRewards(user, REWARD_TOKEN());
+    vm.expectRevert();
     staticATokenLM.claimRewardsOnBehalf(user, user1, rewardTokens);
   }
 

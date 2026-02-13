@@ -149,6 +149,23 @@ interface IStaticATokenLM is IInitializableStaticATokenLM {
   ) external;
 
   /**
+   * @notice Claim rewards on behalf of a user with optional lock parameters
+   * @dev If lockTime and tokenId are both zero, behaves like claimRewardsOnBehalf
+   * @param onBehalfOf The address to claim on behalf of
+   * @param receiver The address to receive the rewards
+   * @param rewards The rewards to claim
+   * @param lockTime Optional lock time (used by Dust rewards controller)
+   * @param tokenId Optional tokenId (used by Dust rewards controller)
+   */
+  function claimRewardsOnBehalfWithLock(
+    address onBehalfOf,
+    address receiver,
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external;
+
+  /**
    * @notice Claim rewards and send them to a receiver
    * @param receiver The address to receive the rewards
    * @param rewards The rewards to claim
@@ -156,10 +173,38 @@ interface IStaticATokenLM is IInitializableStaticATokenLM {
   function claimRewards(address receiver, address[] memory rewards) external;
 
   /**
+   * @notice Claim rewards and send them to a receiver with optional lock parameters
+   * @dev If lockTime and tokenId are both zero, behaves like claimRewards
+   * @param receiver The address to receive the rewards
+   * @param rewards The rewards to claim
+   * @param lockTime Optional lock time (used by Dust rewards controller)
+   * @param tokenId Optional tokenId (used by Dust rewards controller)
+   */
+  function claimRewardsWithLock(
+    address receiver,
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external;
+
+  /**
    * @notice Claim rewards
    * @param rewards The rewards to claim
    */
   function claimRewardsToSelf(address[] memory rewards) external;
+
+  /**
+   * @notice Claim rewards to self with optional lock parameters
+   * @dev If lockTime and tokenId are both zero, behaves like claimRewardsToSelf
+   * @param rewards The rewards to claim
+   * @param lockTime Optional lock time (used by Dust rewards controller)
+   * @param tokenId Optional tokenId (used by Dust rewards controller)
+   */
+  function claimRewardsToSelfWithLock(
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external;
 
   /**
    * @notice Get the total claimable rewards of the contract.

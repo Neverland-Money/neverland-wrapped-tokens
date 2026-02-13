@@ -14,6 +14,7 @@ import {IERC20Metadata} from 'solidity-utils/contracts/oz-common/interfaces/IERC
 import {IERC20} from 'solidity-utils/contracts/oz-common/interfaces/IERC20.sol';
 import {IERC20WithPermit} from 'solidity-utils/contracts/oz-common/interfaces/IERC20WithPermit.sol';
 
+import {IDustRewardsController} from './interfaces/IDustRewardsController.sol';
 import {IStaticATokenLM} from './interfaces/IStaticATokenLM.sol';
 import {IAToken} from './interfaces/IAToken.sol';
 import {ERC20} from './ERC20.sol';
@@ -81,7 +82,7 @@ contract StaticATokenLM is
     _aTokenUnderlying = IAToken(newAToken).UNDERLYING_ASSET_ADDRESS();
     IERC20(_aTokenUnderlying).forceApprove(address(POOL), type(uint256).max);
 
-    if (INCENTIVES_CONTROLLER != IRewardsController(address(0))) {
+    if (address(INCENTIVES_CONTROLLER) != address(0)) {
       refreshRewardTokens();
     }
 
@@ -252,7 +253,9 @@ contract StaticATokenLM is
     address[] memory assets = new address[](1);
     assets[0] = address(_aToken);
 
-    return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint256).max, address(this), reward);
+    uint256 balanceBefore = IERC20(reward).balanceOf(address(this));
+    _claimRewardsFromController(assets, reward);
+    return IERC20(reward).balanceOf(address(this)) - balanceBefore;
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -269,13 +272,47 @@ contract StaticATokenLM is
   }
 
   ///@inheritdoc IStaticATokenLM
+  function claimRewardsOnBehalfWithLock(
+    address onBehalfOf,
+    address receiver,
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external {
+    require(
+      msg.sender == onBehalfOf || msg.sender == INCENTIVES_CONTROLLER.getClaimer(onBehalfOf),
+      StaticATokenErrors.INVALID_CLAIMER
+    );
+    _claimRewardsOnBehalfWithLock(onBehalfOf, receiver, rewards, lockTime, tokenId);
+  }
+
+  ///@inheritdoc IStaticATokenLM
   function claimRewards(address receiver, address[] memory rewards) external {
     _claimRewardsOnBehalf(msg.sender, receiver, rewards);
   }
 
   ///@inheritdoc IStaticATokenLM
+  function claimRewardsWithLock(
+    address receiver,
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external {
+    _claimRewardsOnBehalfWithLock(msg.sender, receiver, rewards, lockTime, tokenId);
+  }
+
+  ///@inheritdoc IStaticATokenLM
   function claimRewardsToSelf(address[] memory rewards) external {
     _claimRewardsOnBehalf(msg.sender, msg.sender, rewards);
+  }
+
+  ///@inheritdoc IStaticATokenLM
+  function claimRewardsToSelfWithLock(
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external {
+    _claimRewardsOnBehalfWithLock(msg.sender, msg.sender, rewards, lockTime, tokenId);
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -630,10 +667,24 @@ contract StaticATokenLM is
     address receiver,
     address[] memory rewards
   ) internal {
+    _claimRewardsOnBehalfWithLock(onBehalfOf, receiver, rewards, 0, 0);
+  }
+
+  function _claimRewardsOnBehalfWithLock(
+    address onBehalfOf,
+    address receiver,
+    address[] memory rewards,
+    uint256 lockTime,
+    uint256 tokenId
+  ) internal {
+    address[] memory assets = new address[](1);
+    assets[0] = address(_aToken);
+
     for (uint256 i = 0; i < rewards.length; i++) {
       if (address(rewards[i]) == address(0)) {
         continue;
       }
+
       uint256 currentRewardsIndex = getCurrentRewardsIndex(rewards[i]);
       uint256 balance = balanceOf[onBehalfOf];
       uint256 userReward = _getClaimableRewards(
@@ -642,23 +693,64 @@ contract StaticATokenLM is
         balance,
         currentRewardsIndex
       );
-      uint256 totalRewardTokenBalance = IERC20(rewards[i]).balanceOf(address(this));
+
+      if (userReward == 0) {
+        continue;
+      }
+
+      uint256 claimed = _claimRewardsFromController(
+        assets,
+        rewards[i],
+        userReward,
+        receiver,
+        lockTime,
+        tokenId
+      );
+
       uint256 unclaimedReward = 0;
-
-      if (userReward > totalRewardTokenBalance) {
-        totalRewardTokenBalance += collectAndUpdateRewards(address(rewards[i]));
+      if (claimed < userReward) {
+        unclaimedReward = userReward - claimed;
       }
 
-      if (userReward > totalRewardTokenBalance) {
-        unclaimedReward = userReward - totalRewardTokenBalance;
-        userReward = totalRewardTokenBalance;
-      }
-      if (userReward > 0) {
-        _userRewardsData[onBehalfOf][rewards[i]].unclaimedRewards = unclaimedReward.toUint128();
-        _userRewardsData[onBehalfOf][rewards[i]].rewardsIndexOnLastInteraction = currentRewardsIndex
-          .toUint128();
-        IERC20(rewards[i]).safeTransfer(receiver, userReward);
-      }
+      _userRewardsData[onBehalfOf][rewards[i]].unclaimedRewards = unclaimedReward.toUint128();
+      _userRewardsData[onBehalfOf][rewards[i]].rewardsIndexOnLastInteraction = currentRewardsIndex
+        .toUint128();
+    }
+  }
+
+  function _claimRewardsFromController(address[] memory assets, address reward) internal returns (uint256) {
+    return _claimRewardsFromController(assets, reward, type(uint256).max, address(this), 0, 0);
+  }
+
+  function _claimRewardsFromController(
+    address[] memory assets,
+    address reward,
+    uint256 amount,
+    address receiver,
+    uint256 lockTime,
+    uint256 tokenId
+  ) internal returns (uint256) {
+    bytes memory payload = abi.encodeWithSelector(
+      IDustRewardsController.claimRewards.selector,
+      assets,
+      amount,
+      receiver,
+      reward,
+      lockTime,
+      tokenId
+    );
+
+    (bool success, bytes memory data) = address(INCENTIVES_CONTROLLER).call(payload);
+    if (success) {
+      return abi.decode(data, (uint256));
+    }
+
+    if (data.length == 0) {
+      return INCENTIVES_CONTROLLER.claimRewards(assets, amount, receiver, reward);
+    }
+
+    assembly {
+      revert(add(data, 0x20), mload(data))
     }
   }
 
