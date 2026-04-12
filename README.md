@@ -20,7 +20,7 @@ This repository contains the Neverland deployment of EIP-4626 compliant wrapper 
 | **StaticATokenFactory (Implementation)** | `0x73006F5e72Af8d593BB7c029EAaFBc4D4b535A7B` | Factory implementation contract                  |
 | **StaticATokenLM (Implementation)**      | `0xF20a545013B74F7Ed0239399217B130e4177E085` | Template for wrapped static NTokens              |
 | **ProxyAdmin**                           | `0x0cBe49645BCC84eD90A6aA4D93dfEb2Cc836F721` | Manages proxy upgrades                           |
-| **ProxyAdmin Owner**                     | `0x57976e192C45461F5958045a0bC57102e90440eD` | Neverland Foundation multisig (Gnosis Safe)      |
+| **ProxyAdmin Owner**                     | `0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f` | GovernanceTimelock (24h delayed governance)      |
 | **TransparentProxyFactory**              | `0x8A93f9d1aEc306727cb70b3F500651C6a0Ccec0F` | Creates transparent proxies                      |
 
 ### Referenced Aave Contracts
@@ -79,7 +79,7 @@ The wrapped tokens (wn\*) are EIP-4626 compliant vaults that:
 - **Reward Tracking**: Automatically tracks and allows claiming of DUST rewards
 - **Non-Rebasing**: Balance stays constant while the exchange rate increases
 - **Composability**: Compatible with DeFi protocols that don't support rebasing tokens
-- **Upgradeable**: Managed by Neverland Foundation multisig
+- **Upgradeable**: Managed through GovernanceTimelock (24h delayed governance lane)
 
 ### Reward Distribution
 
@@ -132,12 +132,18 @@ wrapper.claimRewardsOnBehalf(onBehalfOf, receiver, rewards);
 
 ## Governance
 
-The deployment is controlled by the Neverland Foundation multisig (`0x57976e192C45461F5958045a0bC57102e90440eD`) which has the ability to:
+The live ownership model after the April 10, 2026 governance cutover is:
 
-- Upgrade implementation contracts
-- Add new reward tokens
-- Update system parameters
-- Emergency pause (if needed)
+- `GovernanceTimelock` (`0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f`)
+  - current owner of `StaticAToken ProxyAdmin`
+  - delayed governance path for wrapper upgrades and other actions gated by `StaticAToken ProxyAdmin.owner()`
+- Governance Safe (`0x57976e192C45461F5958045a0bC57102e90440eD`)
+  - proposer / executor / canceller on `GovernanceTimelock`
+  - no longer directly owns `StaticAToken ProxyAdmin`
+
+Operationally, this means upgrades to `StaticATokenFactory` and the wrapper proxies administered by `StaticAToken ProxyAdmin` must now flow through the shared Neverland governance timelock instead of direct Safe execution.
+
+This repository is the canonical implementation repo for the static wrapper system. The shared governance rules, timelock tasks, and migration runbooks live in [`neverland-contracts`](https://github.com/Neverland-Money/neverland-contracts).
 
 ## Development
 
