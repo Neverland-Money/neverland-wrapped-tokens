@@ -12,31 +12,21 @@ import {NeverlandMonadMainnet} from "../src/NeverlandAddressBook.sol";
  *      without redeploying the entire factory infrastructure
  *
  * Usage:
- *   1. Add new reserve addresses to NeverlandAddressBook.sol
- *   2. Update FACTORY_ADDRESS below with your deployed factory
- *   3. Update NEW_RESERVES array with addresses of new reserves
- *   4. Run: forge script scripts/DeployAdditionalStaticTokens.s.sol:DeployAdditionalStaticTokens \
+ *   1. Execute the reserve listing on the Pool so the underlying is initialized
+ *   2. Run: forge script scripts/DeployAdditionalStaticTokens.s.sol:DeployAdditionalStaticTokens \
  *           --rpc-url monad --broadcast -vvv
  */
 contract DeployAdditionalStaticTokens is Script {
-    // UPDATE THIS: Address of your deployed StaticATokenFactory
-    address constant FACTORY_ADDRESS = address(0); // UPDATE AFTER INITIAL DEPLOYMENT
+    address constant FACTORY_ADDRESS = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
 
     function getNewReserves() internal pure returns (address[] memory) {
-        // UPDATE THIS: Add new reserve addresses here
-        address[] memory reserves = new address[](0);
-
-        // Example for future reserves:
-        // reserves = new address[](2);
-        // reserves[0] = 0x...; // New reserve 1
-        // reserves[1] = 0x...; // New reserve 2
+        address[] memory reserves = new address[](1);
+        reserves[0] = NeverlandMonadMainnet.SYZUSD;
 
         return reserves;
     }
 
     function run() external {
-        require(FACTORY_ADDRESS != address(0), "Update FACTORY_ADDRESS first");
-
         address[] memory newReserves = getNewReserves();
         require(newReserves.length > 0, "No new reserves specified");
 

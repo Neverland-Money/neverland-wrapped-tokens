@@ -35,6 +35,7 @@ library NeverlandMonadMainnet {
     address internal constant GMON = 0x8498312A6B3CbD158bf0c93AbdCF29E6e4F55081;
     address internal constant AUSD = 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a;
     address internal constant EARNAUSD = 0x103222f020e98Bba0AD9809A011FDF8e6F067496;
+    address internal constant SYZUSD = 0x484be0540aD49f351eaa04eeB35dF0f937D4E73f;
     address internal constant LOAZND = 0x9c82eB49B51F7Dc61e22Ff347931CA32aDc6cd90;
 
     // ============================================
