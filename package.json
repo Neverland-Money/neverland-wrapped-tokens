@@ -1,25 +1,55 @@
 {
-  "name": "static-a-token-v3",
+  "name": "@neverland-money/wrapped-tokens",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
+  "description": "Neverland EIP-4626 wrapped token contracts for Monad",
+  "files": [
+    "README.md",
+    "README_ORIGINAL.md",
+    "LICENSE",
+    "audits",
+    "src",
+    "scripts",
+    "tests",
+    "foundry.toml",
+    "remappings.txt"
+  ],
+  "engines": {
+    "node": ">=22.0.0 <23"
   },
   "scripts": {
+    "build": "forge build --sizes",
+    "test": "forge test -vv",
+    "test:rewards": "forge test --match-contract StaticATokenLMDustRewardsTest -vv",
+    "test:e2e": "forge test --match-contract StaticATokenLME2ETest -vv",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
     "lint": "prettier . --write"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bgd-labs/static-a-token-v3.git"
+    "url": "git+https://github.com/Neverland-Money/neverland-wrapped-tokens.git"
   },
-  "author": "",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/bgd-labs/static-a-token-v3/issues"
+  "author": "Neverland",
+  "contributors": [
+    "Catalyst <catalyst@neverland.money>"
+  ],
+  "keywords": [
+    "neverland",
+    "monad",
+    "solidity",
+    "erc4626",
+    "aave",
+    "wrapped-tokens"
+  ],
+  "upstream": {
+    "name": "static-a-token-v3",
+    "repository": "https://github.com/bgd-labs/static-a-token-v3"
   },
-  "homepage": "https://github.com/bgd-labs/static-a-token-v3#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Neverland-Money/neverland-wrapped-tokens#readme",
   "devDependencies": {
     "prettier": "^2.8.3",
     "prettier-plugin-solidity": "^1.1.1"

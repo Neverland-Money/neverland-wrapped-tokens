@@ -1,223 +1,247 @@
-# Static NToken Wrapper - Neverland Deployment
+# Neverland Wrapped Tokens
 
-> **Note:** This README is specific to the Neverland deployment on Monad Mainnet. For the original project documentation, see [README_ORIGINAL.md](./README_ORIGINAL.md).
+<p>
+  <a href="./README.md"><img src="https://img.shields.io/badge/Neverland%20Wrapped%20Tokens-v1.0.0%20%C2%B7%20Monad%20143%20%C2%B7%20Solidity%200.8.30%20%C2%B7%20Node%2022%20%C2%B7%20Foundry-192170?style=for-the-badge" alt="Neverland Wrapped Tokens v1.0.0 - Monad 143 - Solidity 0.8.30 - Node 22 - Foundry"/></a>
+</p>
 
-## Overview
+EIP-4626 static wrapper contracts for Neverland's rebasing Aave V3 nTokens on Monad Mainnet.
 
-This repository contains the Neverland deployment of EIP-4626 compliant wrapper tokens for Neverland's Aave V3 NTokens on Monad Mainnet. These static wrappers convert rebasing NTokens into standard ERC20 tokens with a fixed balance and growing exchange rate, making them compatible with DeFi protocols that don't support rebasing tokens.
+These wrappers convert rebasing nToken balances into fixed-balance ERC20 vault shares whose exchange rate grows over time. They are maintained by Neverland as the canonical wrapped-n-token implementation package for Monad deployments and downstream integrations. For the original upstream project documentation, see [README_ORIGINAL.md](./README_ORIGINAL.md).
 
-## Deployed Contracts (Monad Mainnet)
+## Package
 
-**Chain ID:** 143  
-**Network:** Monad Mainnet  
-**Deployment Date:** February 2026
+Install the package:
 
-### Core Infrastructure
+```bash
+npm install @neverland-money/wrapped-tokens
+```
 
-| Contract                                 | Address                                      | Description                                      |
-| ---------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
-| **StaticATokenFactory**                  | `0x81148e8e1D9910080317E11c9f178559Ba23Bc80` | Main factory for creating wrapped tokens (Proxy) |
-| **StaticATokenFactory (Implementation)** | `0x73006F5e72Af8d593BB7c029EAaFBc4D4b535A7B` | Factory implementation contract                  |
-| **StaticATokenLM (Implementation)**      | `0xF20a545013B74F7Ed0239399217B130e4177E085` | Template for wrapped static NTokens              |
-| **ProxyAdmin**                           | `0x0cBe49645BCC84eD90A6aA4D93dfEb2Cc836F721` | Manages proxy upgrades                           |
-| **ProxyAdmin Owner**                     | `0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f` | GovernanceTimelock (24h delayed governance)      |
-| **TransparentProxyFactory**              | `0x8A93f9d1aEc306727cb70b3F500651C6a0Ccec0F` | Creates transparent proxies                      |
+The package contains:
 
-### Referenced Aave Contracts
+- `src/`: Solidity sources for the wrapper, factory, oracle, and interfaces.
+- `scripts/`: Monad deployment, upgrade, verification, and fork-validation scripts.
+- `tests/`: local unit and end-to-end reward/accounting tests.
+- `audits/`: upstream static-a-token audit material.
 
-| Contract               | Address                                      |
-| ---------------------- | -------------------------------------------- |
-| **Aave V3 Pool**       | `0x80F00661b13CC5F6ccd3885bE7b4C9c67545D585` |
-| **Rewards Controller** | `0x57ea245cCbFAb074baBb9d01d1F0c60525E52cec` |
-
-### Wrapped Static NTokens
-
-All wrapped tokens follow the naming convention `wn<SYMBOL>` (e.g., "wnWMON" for wrapped nWMON).
-
-| Asset        | Wrapped Token Address                        | Symbol     | Name                       | Decimals |
-| ------------ | -------------------------------------------- | ---------- | -------------------------- | -------- |
-| **WMON**     | `0xdB39A9D4a1f1b4e93A5684d602207628aD60613C` | wnWMON     | Wrapped Neverland WMON     | 18       |
-| **USDC**     | `0x8d5c2Df3Eef09088Fcccf3376D8EcD0Dd505f642` | wnUSDC     | Wrapped Neverland USDC     | 6        |
-| **USDT0**    | `0x4e8aaecCE10ad9394e96fE5f2bd4e587A7B04298` | wnUSDT0    | Wrapped Neverland USDT0    | 6        |
-| **WBTC**     | `0x8959f4E6ED1f4567a464959793d5f8f6f33C1C8B` | wnWBTC     | Wrapped Neverland WBTC     | 8        |
-| **WETH**     | `0xB3b850ac62B89fe9f4eFB652b516108a8aEb8848` | wnWETH     | Wrapped Neverland WETH     | 18       |
-| **sMON**     | `0x08139339dd9A480CEB84D9C7CcE48BE436dB20b3` | wnSMON     | Wrapped Neverland sMON     | 18       |
-| **shMON**    | `0x5e073494678fB7FA4a05bB17d45941Dd9Dc469c1` | wnSHMON    | Wrapped Neverland shMON    | 18       |
-| **gMON**     | `0x29D2075E5151B1A6863bDC40EA86bD5e8aFd1705` | wnGMON     | Wrapped Neverland gMON     | 18       |
-| **AUSD**     | `0x82c370ba90E38ef6Acd8b1b078d34fD86FC6bAC9` | wnAUSD     | Wrapped Neverland AUSD     | 6        |
-| **earnAUSD** | `0xD45D54ad7Ae6D5dEdb0De7B283Fe0b4e2ba40217` | wnEARNAUSD | Wrapped Neverland earnAUSD | 6        |
-| **loAZND**   | `0xD786F7569C39A9F64E6A54Eb77db21364E90F279` | wnLOAZND   | Wrapped Neverland loAZND   | 18       |
-
-## Contract Verification
-
-All contracts are verified on:
-
-- **MonadScan** (Etherscan): https://monadscan.com
-- **Sourcify (Blockvision)**: https://sourcify-api-monad.blockvision.org
-
-**Compilation Settings:**
-
-- Solidity Version: `v0.8.30+commit.737f2a01`
-- EVM Version: `prague`
-- Optimizer: Enabled
-- Optimizer Runs: `200000`
-
-## How It Works
-
-### Static Wrappers
-
-The wrapped tokens (wn\*) are EIP-4626 compliant vaults that:
-
-1. **Wrap rebasing NTokens** into standard ERC20 tokens with fixed balances
-2. **Accrue yield** through an increasing exchange rate instead of balance changes
-3. **Track liquidity mining rewards** from the Aave rewards controller
-4. **Support meta-transactions** via EIP-2612 permits
-
-### Key Features
-
-- **Full EIP-4626 Compatibility**: Standard vault interface for deposits, withdrawals, and accounting
-- **Reward Tracking**: Automatically tracks and allows claiming of DUST rewards
-- **Non-Rebasing**: Balance stays constant while the exchange rate increases
-- **Composability**: Compatible with DeFi protocols that don't support rebasing tokens
-- **Upgradeable**: Managed through GovernanceTimelock (24h delayed governance lane)
-
-### Reward Distribution
-
-The wrapped tokens integrate with Neverland's reward distribution system:
-
-- Rewards accrue to wrapper holders based on their share of deposits
-- Supports liquid claims (with early withdrawal penalty enforced by the [DustLockTransferStrategy](https://github.com/Neverland-Money/neverland-contracts/blob/main/src/emissions/DustLockTransferStrategy.sol)) and locked claims (via veNFT) using the [DustRewardsController](https://github.com/Neverland-Money/neverland-contracts/blob/main/src/emissions/DustRewardsController.sol)
-- Rewards can be claimed on behalf of users by authorized claimers
-- Multiple reward tokens can be supported per wrapper
-
-## Usage
-
-### Depositing
+Example wrapper interaction:
 
 ```solidity
-// Deposit underlying asset (e.g., USDC) and receive wrapped tokens
+// Deposit underlying, for example USDC, and receive wnUSDC.
 IERC20(underlying).approve(address(wrapper), amount);
 wrapper.deposit(amount, receiver, referralCode, true);
 
-// Or deposit NTokens directly
+// Or deposit the nToken directly.
 IERC20(nToken).approve(address(wrapper), amount);
 wrapper.deposit(amount, receiver, referralCode, false);
 ```
 
-### Withdrawing
+## Neverland Changes
+
+The Neverland setup keeps the upstream static-a-token vault architecture intact while adapting the reward and operations surface to the Neverland Monad deployment:
+
+- Wrappers are deployed for Neverland nTokens and use `wn<SYMBOL>` symbols.
+- Reward claims route through the Neverland `DustRewardsController`.
+- Liquid DUST claims use the transfer-strategy direct-claim path, which splits the claimed amount 50/50 between the receiver and treasury.
+- Locked DUST claims support creating a new veDUST lock, topping up an existing veDUST lock, or creating a permanent veDUST lock.
+- `collectAndUpdateRewards(address)` is retained for ABI compatibility but is a no-op, so public callers cannot force wrapper-level liquid DUST claims.
+- `getTotalClaimableRewards(address)` reports controller-pending wrapper rewards only; raw token balances already sitting on the wrapper are not shown as user-claimable rewards.
+- `rescueERC20` and `rescueERC721` allow the current governance timelock to recover stranded non-accounting tokens and NFTs. The wrapper's backing nToken cannot be rescued because it backs outstanding shares.
+- `REWARD_RESCUE_ADMIN()` resolves dynamically from the current EIP-1967 `ProxyAdmin.owner()`.
+
+Neverland-specific reward tests live in [StaticATokenLM.DustRewards.t.sol](./tests/StaticATokenLM.DustRewards.t.sol) and [StaticATokenLM.E2E.t.sol](./tests/StaticATokenLM.E2E.t.sol).
+
+## Runtime Boundary
+
+Each wrapper is an ERC4626-style proxy whose accounting asset is the underlying reserve, while its backing balance is the corresponding Neverland nToken.
+
+`totalAssets()` is the wrapper's nToken balance. Raw balances of underlying tokens, reward tokens, the wrapper's own shares, or unrelated ERC20s are not part of vault accounting. This is why rescue is blocked only for the backing nToken.
+
+Reward economics are enforced by Neverland's controller and transfer strategy, not by the wrapper itself. In particular, the direct liquid DUST claim split is fixed 50/50; `DustLock.earlyWithdrawPenalty()` applies to early withdrawal from an existing lock, not to the wrapper's instant-claim split.
+
+## Current Monad Mainnet Deployment
+
+Chain ID: `143`
+
+Initial deployment: February 2026
+
+Latest implementation upgrade: June 6, 2026
+
+### Core Infrastructure
+
+| Contract                             | Address                                      | Notes                                      |
+| ------------------------------------ | -------------------------------------------- | ------------------------------------------ |
+| `StaticATokenFactory`                | `0x81148e8e1D9910080317E11c9f178559Ba23Bc80` | Factory proxy                              |
+| `StaticATokenFactory` implementation | `0x6D48BeEa61aA165a54f0DD937919204F1A59ED1B` | Current implementation                     |
+| `StaticATokenLM` implementation      | `0xD75D6Bf28519aCD719ae59Cbc47D9af0a0792af1` | Current wrapper implementation, revision 3 |
+| `ProxyAdmin`                         | `0x0cBe49645BCC84eD90A6aA4D93dfEb2Cc836F721` | Admin for factory and wrapper proxies      |
+| `ProxyAdmin.owner()`                 | `0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f` | Neverland governance timelock              |
+| `TransparentProxyFactory`            | `0x8A93f9d1aEc306727cb70b3F500651C6a0Ccec0F` | Proxy factory                              |
+
+### Referenced Protocol Contracts
+
+| Contract                | Address                                      |
+| ----------------------- | -------------------------------------------- |
+| Aave V3 Pool            | `0x80F00661b13CC5F6ccd3885bE7b4C9c67545D585` |
+| Dust Rewards Controller | `0x57ea245cCbFAb074baBb9d01d1F0c60525E52cec` |
+
+### Wrapped nTokens
+
+| Asset    | Wrapped token                                | Symbol       | Name                       | Decimals |
+| -------- | -------------------------------------------- | ------------ | -------------------------- | -------- |
+| WMON     | `0xdB39A9D4a1f1b4e93A5684d602207628aD60613C` | `wnWMON`     | Wrapped Neverland WMON     | 18       |
+| USDC     | `0x8d5c2Df3Eef09088Fcccf3376D8EcD0Dd505f642` | `wnUSDC`     | Wrapped Neverland USDC     | 6        |
+| USDT0    | `0x4e8aaecCE10ad9394e96fE5f2bd4e587A7B04298` | `wnUSDT0`    | Wrapped Neverland USDT0    | 6        |
+| WBTC     | `0x8959f4E6ED1f4567a464959793d5f8f6f33C1C8B` | `wnWBTC`     | Wrapped Neverland WBTC     | 8        |
+| WETH     | `0xB3b850ac62B89fe9f4eFB652b516108a8aEb8848` | `wnWETH`     | Wrapped Neverland WETH     | 18       |
+| sMON     | `0x08139339dd9A480CEB84D9C7CcE48BE436dB20b3` | `wnSMON`     | Wrapped Neverland sMON     | 18       |
+| shMON    | `0x5e073494678fB7FA4a05bB17d45941Dd9Dc469c1` | `wnSHMON`    | Wrapped Neverland shMON    | 18       |
+| gMON     | `0x29D2075E5151B1A6863bDC40EA86bD5e8aFd1705` | `wnGMON`     | Wrapped Neverland gMON     | 18       |
+| AUSD     | `0x82c370ba90E38ef6Acd8b1b078d34fD86FC6bAC9` | `wnAUSD`     | Wrapped Neverland AUSD     | 6        |
+| earnAUSD | `0xD45D54ad7Ae6D5dEdb0De7B283Fe0b4e2ba40217` | `wnEARNAUSD` | Wrapped Neverland earnAUSD | 6        |
+| loAZND   | `0xD786F7569C39A9F64E6A54Eb77db21364E90F279` | `wnLOAZND`   | Wrapped Neverland loAZND   | 18       |
+
+## Reward Claims
 
 ```solidity
-// Redeem wrapped tokens for underlying asset
-wrapper.redeem(shares, receiver, owner);
-
-// Or withdraw specific amount
-wrapper.withdraw(assets, receiver, owner);
-```
-
-### Claiming Rewards
-
-```solidity
-// Claim rewards with liquid option (subject to penalty)
 address[] memory rewards = new address[](1);
-rewards[0] = DUST_ADDRESS;
+rewards[0] = DUST;
+
+// Liquid claim. DUST is split 50/50 between receiver and treasury.
 wrapper.claimRewards(receiver, rewards);
 
-// Claim rewards with lock (no penalty, creates or adds to veNFT)
-// See "Lock Flags" in Notes below for lockTime/tokenId semantics.
-wrapper.claimRewardsWithLock(receiver, rewards, lockDuration, tokenId);
+// Create or top up a lock. These paths avoid the instant liquid split.
+wrapper.claimRewardsWithLock(receiver, rewards, lockTime, tokenId);
 
-// Claim on behalf (requires setClaimer on RewardsController)
-wrapper.claimRewardsOnBehalf(onBehalfOf, receiver, rewards);
+// Third-party claim, after DustRewardsController.setClaimer(user, claimer).
+wrapper.claimRewardsOnBehalf(user, receiver, rewards);
 ```
+
+Lock flag semantics:
+
+- `tokenId > 0`: add DUST to an existing veDUST lock.
+- `tokenId == 0 && lockTime > 0`: create a new veDUST lock.
+- `tokenId == 0 && lockTime == type(uint256).max`: create a permanent veDUST lock.
+- `tokenId == 0 && lockTime == 0`: liquid claim with the fixed 50/50 split.
+
+## Rescue
+
+```solidity
+// Only REWARD_RESCUE_ADMIN(), currently the governance timelock.
+wrapper.rescueERC20(token, receiver);
+wrapper.rescueERC721(nft, receiver, tokenId);
+```
+
+Rescue can recover raw underlying, reward tokens, unrelated ERC20s, the wrapper's own shares, and stranded NFTs. It cannot rescue the backing nToken.
 
 ## Governance
 
-The live ownership model after the April 10, 2026 governance cutover is:
+The live ownership model is:
 
 - `GovernanceTimelock` (`0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f`)
-  - current owner of `StaticAToken ProxyAdmin`
-  - delayed governance path for wrapper upgrades and other actions gated by `StaticAToken ProxyAdmin.owner()`
+  - owns the static-wrapper `ProxyAdmin`
+  - is the rescue admin resolved by `REWARD_RESCUE_ADMIN()`
+  - is the delayed governance path for wrapper and factory upgrades
 - Governance Safe (`0x57976e192C45461F5958045a0bC57102e90440eD`)
-  - proposer / executor / canceller on `GovernanceTimelock`
-  - no longer directly owns `StaticAToken ProxyAdmin`
+  - proposer, executor, and canceller on the governance timelock
+  - does not directly own the static-wrapper `ProxyAdmin`
 
-Operationally, this means upgrades to `StaticATokenFactory` and the wrapper proxies administered by `StaticAToken ProxyAdmin` must now flow through the shared Neverland governance timelock instead of direct Safe execution.
-
-This repository is the canonical implementation repo for the static wrapper system. The shared governance rules, timelock tasks, and migration runbooks live in [`neverland-contracts`](https://github.com/Neverland-Money/neverland-contracts).
+Shared governance transaction packages and multisig runbooks live in the `neverland-contracts` repository.
 
 ## Development
 
-This project uses [Foundry](https://getfoundry.sh).
+Use Node `22.18.0` via `.nvmrc`. Use Foundry for Solidity builds and tests. Use the local Prettier 2 Solidity plugin for formatting.
 
-### Setup
-
-```sh
+```bash
+nvm use
 cp .env.example .env
 forge install
+npm install
+
+forge build --sizes
+forge test -vv
+npm run lint
 ```
 
-### Test
+Useful focused commands:
 
-```sh
-forge test
+```bash
+forge test --match-contract StaticATokenLMDustRewardsTest -vv
+forge test --match-contract StaticATokenLME2ETest -vv
+forge build --sizes --skip test
 ```
 
-### Format
+## Deployment Operations
 
-```sh
-forge fmt
+Initial deployment scripts:
+
+- `scripts/DeployMonad.s.sol`
+- `scripts/VerifyPreDeployment.s.sol`
+- `scripts/VerifyDeployment.s.sol`
+
+Implementation-upgrade scripts:
+
+- `scripts/DeployUpgradeImplementations.s.sol`: deploys replacement implementations only.
+- `scripts/ExportUpgradeSafeBatch.s.sol`: exports the ProxyAdmin upgrade batch input used by governance packaging.
+- `scripts/ConfirmUpgradeFork.s.sol`: confirms the collect-hook fix and state preservation on a fork.
+- `scripts/SimulateUpgradeFork.s.sol`: fork-applies the upgrade and proves deposit, withdraw, claim, and rescue behavior.
+- `scripts/ValidateRewardsFork.s.sol`: exercises live reward paths on a fork.
+
+Post-deploy verification example:
+
+```bash
+PROXY_ADMIN=0x0cBe49645BCC84eD90A6aA4D93dfEb2Cc836F721 \
+TRANSPARENT_PROXY_FACTORY=0x8A93f9d1aEc306727cb70b3F500651C6a0Ccec0F \
+STATIC_A_TOKEN_IMPL=0xD75D6Bf28519aCD719ae59Cbc47D9af0a0792af1 \
+STATIC_A_TOKEN_FACTORY=0x81148e8e1D9910080317E11c9f178559Ba23Bc80 \
+EXPECTED_PROXY_ADMIN_OWNER=0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f \
+EXPECTED_REWARD_RESCUE_ADMIN=0x3e4749D9Df7EC5ecd9184c301592bAc058a6F82f \
+forge script scripts/VerifyDeployment.s.sol:VerifyDeployment --rpc-url monad -vv
 ```
 
-### Deploy
+## Layout
 
-Deployment scripts are located in `scripts/`:
+- `src/StaticATokenLM.sol`: wrapper implementation.
+- `src/StaticATokenFactory.sol`: factory implementation.
+- `src/NeverlandAddressBook.sol`: Monad deployment constants used by scripts.
+- `src/interfaces/`: public wrapper, factory, Dust controller, and helper interfaces.
+- `scripts/`: deployment, upgrade, verification, and fork validation.
+- `tests/`: local unit, E2E, reward, rescue, oracle, and meta-transaction tests.
 
-- `DeployMonad.s.sol`: Main deployment script for Monad
-- `VerifyDeployment.s.sol`: Post-deployment verification
+## Verification
+
+Compilation settings:
+
+- Solidity: `0.8.30`
+- Optimizer: enabled
+- Optimizer runs: `200000`
+
+Current deployment verification targets:
+
+- MonadScan: <https://monadscan.com>
+- Sourcify / Blockvision: <https://sourcify-api-monad.blockvision.org>
+
+## Upstream Provenance
+
+This package is derived from BGD Labs' static aToken v3 codebase, which has since moved into Aave V3 Origin:
+
+- Original README: [README_ORIGINAL.md](./README_ORIGINAL.md)
+- Aave V3 Origin static-a-token: <https://github.com/aave-dao/aave-v3-origin/tree/main/src/contracts/extensions/stata-token>
+
+Upstream licensing, attribution, and notices are preserved where they apply.
 
 ## Security
 
-### Audits
+- Certora formal verification and manual review material from the upstream static-a-token project is available in [audits/](./audits/).
+- Neverland-specific DUST reward, lock, rescue, and upgrade behavior is covered by local tests and fork-validation scripts in this repository.
+- The upstream audit material does not by itself cover Neverland-specific reward distribution modifications.
 
-- Certora formal verification (see [audits/](./audits/))
-- Extensive test suite covering all critical functionality
+## License And Notices
 
-**Disclaimer:** The audits linked above do not cover the Neverland‑specific reward distribution modifications in this repository.
+See [LICENSE](./LICENSE). Solidity sources retain their SPDX headers where applicable.
 
-### Verification Status
-
-✓ All contracts verified on MonadScan (Etherscan) and MonadVision (Blockvision - Sourcify)
-
-## Architecture
-
-```
-StaticATokenFactory (Proxy)
-└── Creates individual wrapped tokens via TransparentProxyFactory
-    └── Each wrapper is a StaticATokenLM proxy
-        ├── Deposits underlying → receives NTokens → tracks as shares
-        ├── Accrues yield through exchange rate
-        └── Tracks rewards from DustRewardsController
-```
-
-## Important Notes
-
-1. **Reward Registration**: `refreshRewardTokens()` is called during `initialize()` if the incentives controller is set. Manual refresh is only needed if new rewards are added later.
-2. **Exchange Rate**: Always increasing (barring Aave v3 shortfall events)
-3. **Gas Considerations**: Monad charges the full gas limit, not just used gas
-4. **Penalty**: Liquid reward claims incur an early withdrawal penalty that goes to the treasury
-
-## Notes
-
-- **Wrapper vs. Controller**: Economic logic (penalty + locking) is enforced by the [DustLockTransferStrategy](https://github.com/Neverland-Money/neverland-contracts/blob/main/src/emissions/DustLockTransferStrategy.sol), not by the wrapper. See [audits](https://github.com/Neverland-Money/neverland-contracts/tree/main/audits).
-- **Claim Paths**: Wrapper claims default to liquid (lockTime=0, tokenId=0). Locked claims are supported but require explicit caller inputs.
-- **Lock Flags** (see [DustLockTransferStrategy](https://github.com/Neverland-Money/neverland-contracts/blob/main/src/emissions/DustLockTransferStrategy.sol)):
-  - `tokenId > 0` → add DUST to existing veDUST
-  - `tokenId == 0 && lockTime > 0` → create new veDUST lock
-  - `tokenId == 0 && lockTime == type(uint256).max` → create permanent veDUST lock
-  - `tokenId == 0 && lockTime == 0` → liquid claim with earlyWithdrawPenalty
-- **On‑Behalf Claims**: Requires `setClaimer(user, claimer)` on the rewards controller before a third‑party distributor can claim.
-- **Post‑Deploy Validation**: Run `scripts/VerifyDeployment.s.sol` on mainnet and optionally `scripts/SmokeTestMainnet.s.sol` with small amounts.
-
-## License
-
-See [LICENSE](./LICENSE) file for details.
+<p>
+  <a href="https://neverland.money"><img src="https://img.shields.io/badge/Website-neverland.money-480052?style=for-the-badge&logo=safari&logoColor=white" height="22" alt="Website"/></a>
+  <a href="https://app.neverland.money"><img src="https://img.shields.io/badge/App-app.neverland.money-192170?style=for-the-badge&logo=ethereum&logoColor=white" height="22" alt="App"/></a>
+  <a href="https://x.com/Neverland_Money"><img src="https://img.shields.io/badge/X-%40Neverland__Money-1DA1F2?style=for-the-badge" height="22" alt="X"/></a>
+  <a href="https://discord.com/invite/neverland"><img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="22" alt="Discord"/></a>
+</p>
