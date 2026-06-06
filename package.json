@@ -2,6 +2,7 @@
   "name": "@neverland-money/wrapped-tokens",
   "version": "1.0.0",
   "description": "Neverland EIP-4626 wrapped token contracts for Monad",
+  "packageManager": "yarn@1.22.22",
   "files": [
     "README.md",
     "README_ORIGINAL.md",
