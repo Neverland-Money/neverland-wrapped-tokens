@@ -7,12 +7,12 @@ pragma solidity ^0.8.10;
  * @dev Used to keep StaticATokenLM compatible with both Dust and Aave controllers.
  */
 interface IDustRewardsController {
-    function claimRewards(
-        address[] calldata assets,
-        uint256 amount,
-        address to,
-        address reward,
-        uint256 lockTime,
-        uint256 tokenId
-    ) external returns (uint256);
+  function claimRewards(
+    address[] calldata assets,
+    uint256 amount,
+    address to,
+    address reward,
+    uint256 lockTime,
+    uint256 tokenId
+  ) external returns (uint256);
 }
