@@ -11,4 +11,6 @@ library StaticATokenErrors {
   string public constant ONLY_ONE_AMOUNT_FORMAT_ALLOWED = '7';
   string public constant INVALID_ZERO_AMOUNT = '8';
   string public constant REWARD_NOT_INITIALIZED = '9';
+  string public constant ONLY_RESCUE_ADMIN = '10';
+  string public constant INVALID_RESCUE_TOKEN = '11';
 }
