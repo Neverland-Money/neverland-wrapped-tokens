@@ -8,6 +8,8 @@ import {IAToken} from '../src/interfaces/IAToken.sol';
 import {IRewardsController} from 'aave-v3-periphery/contracts/rewards/interfaces/IRewardsController.sol';
 import {IPool} from 'aave-v3-core/contracts/interfaces/IPool.sol';
 import {TransparentUpgradeableProxy} from 'solidity-utils/contracts/transparent-proxy/TransparentUpgradeableProxy.sol';
+import {ProxyAdmin} from 'solidity-utils/contracts/transparent-proxy/ProxyAdmin.sol';
+import {StaticATokenErrors} from '../src/StaticATokenErrors.sol';
 
 contract MockPool {
   uint256 public normalizedIncome = 1e27;
@@ -22,10 +24,35 @@ contract MockPool {
 }
 
 contract MockERC20 is ERC20 {
-  constructor(string memory _name, string memory _symbol, uint8 _decimals) ERC20(_name, _symbol, _decimals) {}
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    uint8 _decimals
+  ) ERC20(_name, _symbol, _decimals) {}
 
   function mint(address to, uint256 amount) external {
     _mint(to, amount);
+  }
+}
+
+contract MockERC721 {
+  event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
+  mapping(uint256 => address) public ownerOf;
+
+  function mint(address to, uint256 tokenId) external {
+    require(to != address(0), 'ZERO_TO');
+    ownerOf[tokenId] = to;
+    emit Transfer(address(0), to, tokenId);
+  }
+
+  function transferFrom(address from, address to, uint256 tokenId) public {
+    require(ownerOf[tokenId] == from, 'NOT_OWNER');
+    require(msg.sender == from, 'NOT_APPROVED');
+    require(to != address(0), 'ZERO_TO');
+
+    ownerOf[tokenId] = to;
+    emit Transfer(from, to, tokenId);
   }
 }
 
@@ -34,9 +61,7 @@ contract MockAToken is MockERC20, IAToken {
   address internal _underlying;
   address internal _incentives;
 
-  constructor(address pool_, address underlying_)
-    MockERC20('MockAToken', 'mAT', 18)
-  {
+  constructor(address pool_, address underlying_) MockERC20('MockAToken', 'mAT', 18) {
     _pool = pool_;
     _underlying = underlying_;
   }
@@ -63,21 +88,18 @@ contract MockAToken is MockERC20, IAToken {
 }
 
 contract MockRewardsController {
-  uint256 public constant BPS = 10_000;
-
   address public immutable rewardToken;
   address public immutable asset;
   address public immutable treasury;
-  uint256 public immutable penaltyBps;
 
   uint256 public assetIndex;
+  mapping(address => uint256) public userRewards;
   mapping(address => address) internal _claimers;
 
-  constructor(address rewardToken_, address asset_, address treasury_, uint256 penaltyBps_) {
+  constructor(address rewardToken_, address asset_, address treasury_) {
     rewardToken = rewardToken_;
     asset = asset_;
     treasury = treasury_;
-    penaltyBps = penaltyBps_;
   }
 
   function setClaimer(address user, address claimer) external {
@@ -90,6 +112,10 @@ contract MockRewardsController {
 
   function setAssetIndex(uint256 index) external {
     assetIndex = index;
+  }
+
+  function setUserRewards(address user, uint256 amount) external {
+    userRewards[user] = amount;
   }
 
   function getRewardsByAsset(address asset_) external view returns (address[] memory) {
@@ -106,11 +132,13 @@ contract MockRewardsController {
   }
 
   function getUserRewards(
-    address[] calldata,
-    address,
-    address
-  ) external pure returns (uint256) {
-    return 0;
+    address[] calldata assets,
+    address user,
+    address reward
+  ) external view returns (uint256) {
+    require(assets.length == 1 && assets[0] == asset, 'ASSET');
+    require(reward == rewardToken, 'REWARD');
+    return userRewards[user];
   }
 
   function claimRewards(
@@ -141,14 +169,18 @@ contract MockRewardsController {
       claimAmount = available;
     }
 
-    if (lockTime == 0 && tokenId == 0 && penaltyBps > 0) {
-      uint256 penalty = (claimAmount * penaltyBps) / BPS;
-      MockERC20(rewardToken).transfer(to, claimAmount - penalty);
-      if (penalty > 0) {
-        MockERC20(rewardToken).transfer(treasury, penalty);
+    if (lockTime == 0 && tokenId == 0) {
+      uint256 treasuryValue = claimAmount / 2;
+      MockERC20(rewardToken).transfer(to, claimAmount - treasuryValue);
+      if (treasuryValue > 0) {
+        MockERC20(rewardToken).transfer(treasury, treasuryValue);
       }
     } else {
       MockERC20(rewardToken).transfer(to, claimAmount);
+    }
+
+    if (userRewards[msg.sender] >= claimAmount) {
+      userRewards[msg.sender] -= claimAmount;
     }
 
     return claimAmount;
@@ -156,13 +188,15 @@ contract MockRewardsController {
 }
 
 contract StaticATokenLMDustRewardsTest is Test {
-  uint256 internal constant PENALTY_BPS = 5_000;
   uint256 internal constant REWARD_INDEX = 1e18;
   uint256 internal constant USER_BALANCE = 100e18;
 
   address internal constant USER = address(0x1);
   address internal constant CLAIMER = address(0x2);
   address internal constant TREASURY = address(0x3);
+  address internal constant REWARD_RESCUE_ADMIN = address(0x4);
+  address internal constant RESCUE_RECEIVER = address(0x5);
+  address internal constant NEW_REWARD_RESCUE_ADMIN = address(0x6);
 
   MockPool internal pool;
   MockERC20 internal underlying;
@@ -170,13 +204,14 @@ contract StaticATokenLMDustRewardsTest is Test {
   MockERC20 internal dust;
   MockRewardsController internal controller;
   StaticATokenLM internal staticATokenLM;
+  ProxyAdmin internal proxyAdmin;
 
   function setUp() public {
     pool = new MockPool();
     underlying = new MockERC20('Underlying', 'UND', 18);
     aToken = new MockAToken(address(pool), address(underlying));
     dust = new MockERC20('Dust', 'DUST', 18);
-    controller = new MockRewardsController(address(dust), address(aToken), TREASURY, PENALTY_BPS);
+    controller = new MockRewardsController(address(dust), address(aToken), TREASURY);
 
     StaticATokenLM impl = new StaticATokenLM(
       IPool(address(pool)),
@@ -188,9 +223,11 @@ contract StaticATokenLMDustRewardsTest is Test {
       'Static aToken',
       'stata'
     );
+    proxyAdmin = new ProxyAdmin();
+    proxyAdmin.transferOwnership(REWARD_RESCUE_ADMIN);
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(impl),
-      address(0xBEEF),
+      address(proxyAdmin),
       initData
     );
     staticATokenLM = StaticATokenLM(address(proxy));
@@ -219,7 +256,7 @@ contract StaticATokenLMDustRewardsTest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, rewards);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = userReward / 2;
     assertEq(dust.balanceOf(USER), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(dust.balanceOf(address(staticATokenLM)), 0);
@@ -275,16 +312,16 @@ contract StaticATokenLMDustRewardsTest is Test {
     assertEq(staticATokenLM.getUnclaimedRewards(USER, address(dust)), 0);
   }
 
-  function test_collectAndUpdateRewards_balanceDelta() public {
+  function test_collectAndUpdateRewards_noop_doesNotForceLiquidClaim() public {
     uint256 amount = 100e18;
     dust.mint(address(controller), amount);
 
     uint256 claimed = staticATokenLM.collectAndUpdateRewards(address(dust));
-    uint256 penalty = (amount * PENALTY_BPS) / 10_000;
 
-    assertEq(claimed, amount - penalty);
-    assertEq(dust.balanceOf(address(staticATokenLM)), amount - penalty);
-    assertEq(dust.balanceOf(TREASURY), penalty);
+    assertEq(claimed, 0);
+    assertEq(dust.balanceOf(address(controller)), amount);
+    assertEq(dust.balanceOf(address(staticATokenLM)), 0);
+    assertEq(dust.balanceOf(TREASURY), 0);
   }
 
   function test_claimRewards_partialFunding_keepsUnclaimed() public {
@@ -319,24 +356,164 @@ contract StaticATokenLMDustRewardsTest is Test {
     vm.prank(CLAIMER);
     staticATokenLM.claimRewardsOnBehalfWithLock(USER, receiver, rewards, 0, 0);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = userReward / 2;
     assertEq(dust.balanceOf(receiver), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(staticATokenLM.getUnclaimedRewards(USER, address(dust)), 0);
   }
 
-  function test_collectAndUpdateRewards_balanceDelta_withExistingBalance() public {
+  function test_getTotalClaimableRewards_excludesWrapperBalance() public {
     uint256 existing = 10e18;
     dust.mint(address(staticATokenLM), existing);
 
     uint256 amount = 80e18;
     dust.mint(address(controller), amount);
+    controller.setUserRewards(address(staticATokenLM), amount);
 
+    assertEq(staticATokenLM.getTotalClaimableRewards(address(dust)), amount);
+
+    vm.prank(address(0xBEEF));
     uint256 claimed = staticATokenLM.collectAndUpdateRewards(address(dust));
-    uint256 penalty = (amount * PENALTY_BPS) / 10_000;
 
-    assertEq(claimed, amount - penalty);
-    assertEq(dust.balanceOf(address(staticATokenLM)), existing + amount - penalty);
-    assertEq(dust.balanceOf(TREASURY), penalty);
+    assertEq(claimed, 0);
+    assertEq(staticATokenLM.getTotalClaimableRewards(address(dust)), amount);
+    assertEq(dust.balanceOf(address(staticATokenLM)), existing);
+    assertEq(dust.balanceOf(address(controller)), amount);
+    assertEq(dust.balanceOf(TREASURY), 0);
+  }
+
+  function test_rescueERC20_adminCanSweepRegisteredRewardBalance() public {
+    uint256 stranded = 10e18;
+    dust.mint(address(staticATokenLM), stranded);
+
+    vm.prank(REWARD_RESCUE_ADMIN);
+    uint256 rescued = staticATokenLM.rescueERC20(address(dust), RESCUE_RECEIVER);
+
+    assertEq(rescued, stranded);
+    assertEq(dust.balanceOf(RESCUE_RECEIVER), stranded);
+    assertEq(dust.balanceOf(address(staticATokenLM)), 0);
+  }
+
+  function test_rescueERC20_tracksProxyAdminOwnerChanges() public {
+    assertEq(staticATokenLM.REWARD_RESCUE_ADMIN(), REWARD_RESCUE_ADMIN);
+
+    vm.prank(REWARD_RESCUE_ADMIN);
+    proxyAdmin.transferOwnership(NEW_REWARD_RESCUE_ADMIN);
+
+    assertEq(staticATokenLM.REWARD_RESCUE_ADMIN(), NEW_REWARD_RESCUE_ADMIN);
+
+    uint256 stranded = 10e18;
+    dust.mint(address(staticATokenLM), stranded);
+
+    vm.prank(NEW_REWARD_RESCUE_ADMIN);
+    uint256 rescued = staticATokenLM.rescueERC20(address(dust), RESCUE_RECEIVER);
+
+    assertEq(rescued, stranded);
+    assertEq(dust.balanceOf(RESCUE_RECEIVER), stranded);
+  }
+
+  function test_rescueERC20_tracksProxyAdminReplacement() public {
+    ProxyAdmin newProxyAdmin = new ProxyAdmin();
+    newProxyAdmin.transferOwnership(NEW_REWARD_RESCUE_ADMIN);
+
+    vm.prank(REWARD_RESCUE_ADMIN);
+    proxyAdmin.changeProxyAdmin(
+      TransparentUpgradeableProxy(payable(address(staticATokenLM))),
+      address(newProxyAdmin)
+    );
+
+    assertEq(staticATokenLM.REWARD_RESCUE_ADMIN(), NEW_REWARD_RESCUE_ADMIN);
+
+    uint256 stranded = 10e18;
+    dust.mint(address(staticATokenLM), stranded);
+
+    vm.prank(NEW_REWARD_RESCUE_ADMIN);
+    uint256 rescued = staticATokenLM.rescueERC20(address(dust), RESCUE_RECEIVER);
+
+    assertEq(rescued, stranded);
+    assertEq(dust.balanceOf(RESCUE_RECEIVER), stranded);
+  }
+
+  function test_rescueERC20_unauthorizedReverts() public {
+    dust.mint(address(staticATokenLM), 10e18);
+
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', StaticATokenErrors.ONLY_RESCUE_ADMIN));
+    vm.prank(USER);
+    staticATokenLM.rescueERC20(address(dust), RESCUE_RECEIVER);
+  }
+
+  function test_rescueERC20_rescuesUnderlyingAndUnregisteredButRejectsAToken() public {
+    uint256 totalAssetsBefore = staticATokenLM.totalAssets();
+    uint256 totalSupplyBefore = staticATokenLM.totalSupply();
+
+    underlying.mint(address(staticATokenLM), 1e18);
+    MockERC20 other = new MockERC20('Other', 'OTHER', 18);
+    other.mint(address(staticATokenLM), 2e18);
+
+    vm.startPrank(REWARD_RESCUE_ADMIN);
+
+    uint256 rescuedUnderlying = staticATokenLM.rescueERC20(address(underlying), RESCUE_RECEIVER);
+    uint256 rescuedOther = staticATokenLM.rescueERC20(address(other), RESCUE_RECEIVER);
+
+    aToken.mint(address(staticATokenLM), 1e18);
+    vm.expectRevert(
+      abi.encodeWithSignature('Error(string)', StaticATokenErrors.INVALID_RESCUE_TOKEN)
+    );
+    staticATokenLM.rescueERC20(address(aToken), RESCUE_RECEIVER);
+
+    vm.stopPrank();
+
+    assertEq(rescuedUnderlying, 1e18);
+    assertEq(rescuedOther, 2e18);
+    assertEq(underlying.balanceOf(RESCUE_RECEIVER), 1e18);
+    assertEq(other.balanceOf(RESCUE_RECEIVER), 2e18);
+    assertEq(underlying.balanceOf(address(staticATokenLM)), 0);
+    assertEq(other.balanceOf(address(staticATokenLM)), 0);
+    assertEq(aToken.balanceOf(address(staticATokenLM)), totalAssetsBefore + 1e18);
+    assertEq(staticATokenLM.totalAssets(), totalAssetsBefore + 1e18);
+    assertEq(staticATokenLM.totalSupply(), totalSupplyBefore);
+  }
+
+  function test_rescueERC721_adminCanRescueVeDustLikeNFT() public {
+    MockERC721 nft = new MockERC721();
+    uint256 tokenId = 42;
+    nft.mint(address(staticATokenLM), tokenId);
+
+    vm.prank(REWARD_RESCUE_ADMIN);
+    staticATokenLM.rescueERC721(address(nft), RESCUE_RECEIVER, tokenId);
+
+    assertEq(nft.ownerOf(tokenId), RESCUE_RECEIVER);
+  }
+
+  function test_rescueERC721_unauthorizedReverts() public {
+    MockERC721 nft = new MockERC721();
+    uint256 tokenId = 99;
+    nft.mint(address(staticATokenLM), tokenId);
+
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', StaticATokenErrors.ONLY_RESCUE_ADMIN));
+    vm.prank(USER);
+    staticATokenLM.rescueERC721(address(nft), RESCUE_RECEIVER, tokenId);
+
+    assertEq(nft.ownerOf(tokenId), address(staticATokenLM));
+  }
+
+  function test_rescueERC20_zeroReceiverReverts() public {
+    dust.mint(address(staticATokenLM), 10e18);
+
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', StaticATokenErrors.INVALID_RECIPIENT));
+    vm.prank(REWARD_RESCUE_ADMIN);
+    staticATokenLM.rescueERC20(address(dust), address(0));
+  }
+
+  function test_rescueERC721_zeroReceiverReverts() public {
+    MockERC721 nft = new MockERC721();
+    uint256 tokenId = 7;
+    nft.mint(address(staticATokenLM), tokenId);
+
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', StaticATokenErrors.INVALID_RECIPIENT));
+    vm.prank(REWARD_RESCUE_ADMIN);
+    staticATokenLM.rescueERC721(address(nft), address(0), tokenId);
+
+    assertEq(nft.ownerOf(tokenId), address(staticATokenLM));
   }
 }

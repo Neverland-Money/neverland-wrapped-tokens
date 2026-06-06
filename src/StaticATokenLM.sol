@@ -23,6 +23,14 @@ import {StaticATokenErrors} from './StaticATokenErrors.sol';
 import {RayMathExplicitRounding, Rounding} from './RayMathExplicitRounding.sol';
 import {IERC4626} from './interfaces/IERC4626.sol';
 
+interface IProxyAdminOwner {
+  function owner() external view returns (address);
+}
+
+interface IERC721Rescue {
+  function transferFrom(address from, address to, uint256 tokenId) external;
+}
+
 /**
  * @title StaticATokenLM
  * @notice Wrapper smart contract that allows to deposit tokens on the Aave protocol and receive
@@ -50,7 +58,9 @@ contract StaticATokenLM is
       'Withdraw(address owner,address receiver,uint256 shares,uint256 assets,bool withdrawFromAave,uint256 nonce,uint256 deadline)'
     );
 
-  uint256 public constant STATIC__ATOKEN_LM_REVISION = 2;
+  uint256 public constant STATIC__ATOKEN_LM_REVISION = 3;
+  bytes32 internal constant EIP1967_ADMIN_SLOT =
+    0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
   IPool public immutable POOL;
   IRewardsController public immutable INCENTIVES_CONTROLLER;
@@ -245,17 +255,32 @@ contract StaticATokenLM is
   }
 
   ///@inheritdoc IStaticATokenLM
-  function collectAndUpdateRewards(address reward) public returns (uint256) {
-    if (reward == address(0)) {
-      return 0;
-    }
+  function REWARD_RESCUE_ADMIN() public view returns (address) {
+    return IProxyAdminOwner(_proxyAdmin()).owner();
+  }
 
-    address[] memory assets = new address[](1);
-    assets[0] = address(_aToken);
+  ///@inheritdoc IStaticATokenLM
+  function collectAndUpdateRewards(address) external pure returns (uint256) {
+    return 0;
+  }
 
-    uint256 balanceBefore = IERC20(reward).balanceOf(address(this));
-    _claimRewardsFromController(assets, reward);
-    return IERC20(reward).balanceOf(address(this)) - balanceBefore;
+  ///@inheritdoc IStaticATokenLM
+  function rescueERC20(address token, address receiver) external returns (uint256) {
+    require(msg.sender == REWARD_RESCUE_ADMIN(), StaticATokenErrors.ONLY_RESCUE_ADMIN);
+    require(receiver != address(0), StaticATokenErrors.INVALID_RECIPIENT);
+    require(token != address(_aToken), StaticATokenErrors.INVALID_RESCUE_TOKEN);
+
+    uint256 amountToRescue = IERC20(token).balanceOf(address(this));
+    IERC20(token).safeTransfer(receiver, amountToRescue);
+    return amountToRescue;
+  }
+
+  ///@inheritdoc IStaticATokenLM
+  function rescueERC721(address token, address receiver, uint256 tokenId) external {
+    require(msg.sender == REWARD_RESCUE_ADMIN(), StaticATokenErrors.ONLY_RESCUE_ADMIN);
+    require(receiver != address(0), StaticATokenErrors.INVALID_RECIPIENT);
+
+    IERC721Rescue(token).transferFrom(address(this), receiver, tokenId);
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -332,8 +357,7 @@ contract StaticATokenLM is
 
     address[] memory assets = new address[](1);
     assets[0] = address(_aToken);
-    uint256 freshRewards = INCENTIVES_CONTROLLER.getUserRewards(assets, address(this), reward);
-    return IERC20(reward).balanceOf(address(this)) + freshRewards;
+    return INCENTIVES_CONTROLLER.getUserRewards(assets, address(this), reward);
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -698,6 +722,10 @@ contract StaticATokenLM is
         continue;
       }
 
+      _userRewardsData[onBehalfOf][rewards[i]].unclaimedRewards = 0;
+      _userRewardsData[onBehalfOf][rewards[i]].rewardsIndexOnLastInteraction = currentRewardsIndex
+        .toUint128();
+
       uint256 claimed = _claimRewardsFromController(
         assets,
         rewards[i],
@@ -710,16 +738,9 @@ contract StaticATokenLM is
       uint256 unclaimedReward = 0;
       if (claimed < userReward) {
         unclaimedReward = userReward - claimed;
+        _userRewardsData[onBehalfOf][rewards[i]].unclaimedRewards = unclaimedReward.toUint128();
       }
-
-      _userRewardsData[onBehalfOf][rewards[i]].unclaimedRewards = unclaimedReward.toUint128();
-      _userRewardsData[onBehalfOf][rewards[i]].rewardsIndexOnLastInteraction = currentRewardsIndex
-        .toUint128();
     }
-  }
-
-  function _claimRewardsFromController(address[] memory assets, address reward) internal returns (uint256) {
-    return _claimRewardsFromController(assets, reward, type(uint256).max, address(this), 0, 0);
   }
 
   function _claimRewardsFromController(
@@ -751,6 +772,13 @@ contract StaticATokenLM is
 
     assembly {
       revert(add(data, 0x20), mload(data))
+    }
+  }
+
+  function _proxyAdmin() internal view returns (address admin) {
+    bytes32 adminSlot = EIP1967_ADMIN_SLOT;
+    assembly {
+      admin := sload(adminSlot)
     }
   }
 

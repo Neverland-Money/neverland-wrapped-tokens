@@ -129,11 +129,40 @@ interface IStaticATokenLM is IInitializableStaticATokenLM {
   function rate() external view returns (uint256);
 
   /**
-   * @notice Claims rewards from `INCENTIVES_CONTROLLER` and updates internal accounting of rewards.
+   * @notice Returns the current address allowed to rescue stranded reward-token balances.
+   * @dev This is resolved dynamically as the owner of the current EIP-1967 proxy admin.
+   * @return address The current reward rescue admin
+   */
+  function REWARD_RESCUE_ADMIN() external view returns (address);
+
+  /**
+   * @notice Legacy collection hook retained for ABI compatibility.
+   * @dev Neverland wrappers claim rewards directly from the controller to the user/lock receiver.
+   *      Collecting to the wrapper would bypass user-selected Dust lock options.
    * @param reward The reward to claim
-   * @return uint256 Amount collected
+   * @return uint256 Always zero
    */
   function collectAndUpdateRewards(address reward) external returns (uint256);
+
+  /**
+   * @notice Rescues ERC20 tokens accidentally left on the wrapper.
+   * @dev Only callable by `REWARD_RESCUE_ADMIN`. This cannot rescue the wrapper's aToken
+   *      because that balance backs static-token shares. Raw underlying and any other ERC20
+   *      balance can be rescued because they are not included in wrapper accounting.
+   * @param token The ERC20 token to rescue
+   * @param receiver The address receiving the rescued tokens
+   * @return uint256 Amount rescued
+   */
+  function rescueERC20(address token, address receiver) external returns (uint256);
+
+  /**
+   * @notice Rescues ERC721 tokens accidentally left on the wrapper.
+   * @dev Only callable by `REWARD_RESCUE_ADMIN`.
+   * @param token The ERC721 token contract to rescue from
+   * @param receiver The address receiving the rescued NFT
+   * @param tokenId The token id to rescue
+   */
+  function rescueERC721(address token, address receiver, uint256 tokenId) external;
 
   /**
    * @notice Claim rewards on behalf of a user and send them to a receiver
@@ -209,7 +238,7 @@ interface IStaticATokenLM is IInitializableStaticATokenLM {
   /**
    * @notice Get the total claimable rewards of the contract.
    * @param reward The reward to claim
-   * @return uint256 The current balance + pending rewards from the `_incentivesController`
+   * @return uint256 Pending rewards from the `_incentivesController`
    */
   function getTotalClaimableRewards(address reward) external view returns (uint256);
 

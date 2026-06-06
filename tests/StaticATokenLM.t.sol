@@ -195,7 +195,7 @@ contract StaticATokenLMTest is BaseTest {
   }
 
   // test rewards
-  function test_collectAndUpdateRewards() public {
+  function test_collectAndUpdateRewards_noop() public {
     uint128 amountToDeposit = 5 ether;
     _fundUser(amountToDeposit, user);
 
@@ -204,8 +204,10 @@ contract StaticATokenLMTest is BaseTest {
     _skipBlocks(60);
     assertEq(IERC20(REWARD_TOKEN()).balanceOf(address(staticATokenLM)), 0);
     uint256 claimable = staticATokenLM.getTotalClaimableRewards(REWARD_TOKEN());
-    staticATokenLM.collectAndUpdateRewards(REWARD_TOKEN());
-    assertEq(IERC20(REWARD_TOKEN()).balanceOf(address(staticATokenLM)), claimable);
+    uint256 collected = staticATokenLM.collectAndUpdateRewards(REWARD_TOKEN());
+    assertEq(collected, 0);
+    assertEq(IERC20(REWARD_TOKEN()).balanceOf(address(staticATokenLM)), 0);
+    assertEq(staticATokenLM.getTotalClaimableRewards(REWARD_TOKEN()), claimable);
   }
 
   function test_claimRewardsToSelf() public {

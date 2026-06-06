@@ -23,7 +23,11 @@ contract E2EPool {
 }
 
 contract E2EToken is ERC20 {
-  constructor(string memory _name, string memory _symbol, uint8 _decimals) ERC20(_name, _symbol, _decimals) {}
+  constructor(
+    string memory _name,
+    string memory _symbol,
+    uint8 _decimals
+  ) ERC20(_name, _symbol, _decimals) {}
 
   function mint(address to, uint256 amount) external {
     _mint(to, amount);
@@ -89,7 +93,11 @@ contract E2EDustLock {
     return locks[tokenId].owner;
   }
 
-  function createLockFor(uint256 amount, uint256 lockTime, address to) external returns (uint256 tokenId) {
+  function createLockFor(
+    uint256 amount,
+    uint256 lockTime,
+    address to
+  ) external returns (uint256 tokenId) {
     tokenId = nextId++;
     locks[tokenId] = Lock({
       amount: amount,
@@ -99,10 +107,11 @@ contract E2EDustLock {
     });
   }
 
-  function createLockPermanentFor(uint256 amount, uint256 lockTime, address to)
-    external
-    returns (uint256 tokenId)
-  {
+  function createLockPermanentFor(
+    uint256 amount,
+    uint256 lockTime,
+    address to
+  ) external returns (uint256 tokenId) {
     tokenId = nextId++;
     locks[tokenId] = Lock({amount: amount, end: lockTime, isPermanent: true, owner: to});
   }
@@ -157,8 +166,6 @@ contract E2EFeeTransferStrategy is IE2ETransferStrategy {
 }
 
 contract E2EDustLockTransferStrategy {
-  uint256 internal constant BPS = 10_000;
-
   address public immutable incentivesController;
   E2EToken public immutable dust;
   E2EDustLock public immutable dustLock;
@@ -197,10 +204,10 @@ contract E2EDustLockTransferStrategy {
       return true;
     }
 
-    uint256 penalty = (amount * dustLock.earlyWithdrawPenalty()) / BPS;
-    dust.transferFrom(incentivesController, to, amount - penalty);
-    if (penalty > 0) {
-      dust.transferFrom(incentivesController, dustLock.earlyWithdrawTreasury(), penalty);
+    uint256 treasuryValue = amount / 2;
+    dust.transferFrom(incentivesController, to, amount - treasuryValue);
+    if (treasuryValue > 0) {
+      dust.transferFrom(incentivesController, dustLock.earlyWithdrawTreasury(), treasuryValue);
     }
     return true;
   }
@@ -258,6 +265,43 @@ contract E2EReentrantStrategy is IE2ETransferStrategy {
     }
     if (!transferred) {
       transferred = true;
+      E2EToken(reward).transferFrom(incentivesController, to, amount);
+    }
+    return true;
+  }
+}
+
+contract E2EReentrantDrainStrategy is IE2ETransferStrategy {
+  address public immutable incentivesController;
+  StaticATokenLM public immutable wrapper;
+  address public immutable user;
+  address public immutable rewardToken;
+  bool public entered;
+  uint256 public transfers;
+
+  constructor(address controller, StaticATokenLM wrapper_, address user_, address rewardToken_) {
+    incentivesController = controller;
+    wrapper = wrapper_;
+    user = user_;
+    rewardToken = rewardToken_;
+  }
+
+  function performTransfer(
+    address to,
+    address reward,
+    uint256 amount,
+    uint256,
+    uint256
+  ) external returns (bool) {
+    require(msg.sender == incentivesController, 'ONLY_CONTROLLER');
+    if (!entered) {
+      entered = true;
+      address[] memory rewards = new address[](1);
+      rewards[0] = rewardToken;
+      wrapper.claimRewardsOnBehalfWithLock(user, user, rewards, 0, 0);
+    }
+    if (amount > 0) {
+      transfers++;
       E2EToken(reward).transferFrom(incentivesController, to, amount);
     }
     return true;
@@ -472,7 +516,11 @@ contract StaticATokenLME2ETest is Test {
     dust = new E2EToken('Dust', 'DUST', 18);
     dustLock = new E2EDustLock(address(dust), TREASURY, PENALTY_BPS);
     controller = new E2ERewardsController(address(dust), address(aToken));
-    strategy = new E2EDustLockTransferStrategy(address(controller), address(dust), address(dustLock));
+    strategy = new E2EDustLockTransferStrategy(
+      address(controller),
+      address(dust),
+      address(dustLock)
+    );
     controller.setTransferStrategy(address(dust), address(strategy));
 
     vm.prank(address(controller));
@@ -512,6 +560,10 @@ contract StaticATokenLME2ETest is Test {
     rewards[0] = address(dust);
   }
 
+  function _instantTreasuryShare(uint256 amount) internal pure returns (uint256) {
+    return amount / 2;
+  }
+
   function test_e2e_liquidClaim_penalty() public {
     uint256 userReward = _accrueRewards();
     dust.mint(address(controller), userReward);
@@ -519,7 +571,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, _rewardsArray());
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(userReward);
     assertEq(dust.balanceOf(USER), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(dust.balanceOf(address(staticATokenLM)), 0);
@@ -573,7 +625,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(CLAIMER);
     staticATokenLM.claimRewardsOnBehalfWithLock(USER, USER, _rewardsArray(), 0, 0);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(userReward);
     assertEq(dust.balanceOf(USER), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
   }
@@ -587,7 +639,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(CLAIMER);
     staticATokenLM.claimRewardsOnBehalfWithLock(USER, receiver, _rewardsArray(), 0, 0);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(userReward);
     assertEq(dust.balanceOf(receiver), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(staticATokenLM.getClaimableRewards(USER, address(dust)), 0);
@@ -610,7 +662,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, _rewardsArray());
 
-    uint256 penalty1 = (partialAmount * PENALTY_BPS) / 10_000;
+    uint256 penalty1 = _instantTreasuryShare(partialAmount);
     assertEq(dust.balanceOf(USER), partialAmount - penalty1);
     assertEq(dust.balanceOf(TREASURY), penalty1);
     assertEq(staticATokenLM.getUnclaimedRewards(USER, address(dust)), userReward - partialAmount);
@@ -619,7 +671,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, _rewardsArray());
 
-    uint256 penalty2 = ((userReward - partialAmount) * PENALTY_BPS) / 10_000;
+    uint256 penalty2 = _instantTreasuryShare(userReward - partialAmount);
     assertEq(
       dust.balanceOf(USER),
       (partialAmount - penalty1) + (userReward - partialAmount) - penalty2
@@ -641,7 +693,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(CLAIMER);
     staticATokenLM.claimRewardsOnBehalfWithLock(USER, USER, _rewardsArray(), 0, 0);
 
-    uint256 penalty = (claimable * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(claimable);
     assertEq(dust.balanceOf(USER), claimable - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(staticATokenLM.getClaimableRewards(USER, address(dust)), 0);
@@ -658,7 +710,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, _rewardsArray());
 
-    uint256 penalty = (claimable * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(claimable);
     assertEq(dust.balanceOf(USER), claimable - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
     assertEq(staticATokenLM.getClaimableRewards(USER, address(dust)), 0);
@@ -702,7 +754,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, rewards);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(userReward);
     assertEq(dust.balanceOf(USER), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
   }
@@ -718,7 +770,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, rewards);
 
-    uint256 penalty = (userReward * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(userReward);
     assertEq(dust.balanceOf(USER), userReward - penalty);
     assertEq(dust.balanceOf(TREASURY), penalty);
   }
@@ -749,7 +801,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, rewards);
 
-    uint256 dustPenalty = (dustReward * PENALTY_BPS) / 10_000;
+    uint256 dustPenalty = _instantTreasuryShare(dustReward);
     assertEq(dust.balanceOf(USER), dustReward - dustPenalty);
     assertEq(dust.balanceOf(TREASURY), dustPenalty);
     assertEq(otherReward.balanceOf(USER), otherRewardAmount);
@@ -861,16 +913,32 @@ contract StaticATokenLME2ETest is Test {
     assertEq(staticATokenLM.getUnclaimedRewards(USER, address(dust)), userReward - partialAmount);
   }
 
-  function test_e2e_collectAndUpdateRewards_toWrapper() public {
+  function test_e2e_dustStrategyTransferRevert_restoresClaimable() public {
+    uint256 userReward = _accrueRewards();
+    dust.mint(address(controller), userReward);
+
+    vm.prank(address(controller));
+    dust.approve(address(strategy), 0);
+
+    vm.expectRevert(stdError.arithmeticError);
+    vm.prank(USER);
+    staticATokenLM.claimRewardsWithLock(USER, _rewardsArray(), 7 days, 0);
+
+    assertEq(staticATokenLM.getClaimableRewards(USER, address(dust)), userReward);
+    assertEq(dust.balanceOf(address(dustLock)), 0);
+    assertEq(dustLock.nextId(), 1);
+  }
+
+  function test_e2e_collectAndUpdateRewards_noop_doesNotForceLiquidClaim() public {
     uint256 amount = 80e18;
     dust.mint(address(controller), amount);
 
     uint256 claimed = staticATokenLM.collectAndUpdateRewards(address(dust));
-    uint256 penalty = (amount * PENALTY_BPS) / 10_000;
 
-    assertEq(claimed, amount - penalty);
-    assertEq(dust.balanceOf(address(staticATokenLM)), amount - penalty);
-    assertEq(dust.balanceOf(TREASURY), penalty);
+    assertEq(claimed, 0);
+    assertEq(dust.balanceOf(address(controller)), amount);
+    assertEq(dust.balanceOf(address(staticATokenLM)), 0);
+    assertEq(dust.balanceOf(TREASURY), 0);
   }
 
   function test_e2e_claims_across_epochs() public {
@@ -887,7 +955,7 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER);
     staticATokenLM.claimRewards(USER, _rewardsArray());
 
-    uint256 penalty = (reward2 * PENALTY_BPS) / 10_000;
+    uint256 penalty = _instantTreasuryShare(reward2);
     assertEq(dust.balanceOf(USER), reward2 - penalty);
   }
 
@@ -952,8 +1020,8 @@ contract StaticATokenLME2ETest is Test {
     vm.prank(USER2);
     staticATokenLM.claimRewards(USER2, _rewardsArray());
 
-    uint256 penaltyUser = (userClaimable * PENALTY_BPS) / 10_000;
-    uint256 penaltyUser2 = (user2Claimable * PENALTY_BPS) / 10_000;
+    uint256 penaltyUser = _instantTreasuryShare(userClaimable);
+    uint256 penaltyUser2 = _instantTreasuryShare(user2Claimable);
 
     assertEq(dust.balanceOf(USER), userClaimable - penaltyUser);
     assertEq(dust.balanceOf(USER2), user2Claimable - penaltyUser2);
@@ -1016,6 +1084,76 @@ contract StaticATokenLME2ETest is Test {
     assertEq(local.getClaimableRewards(USER, address(reward2)), 0);
     assertTrue(reentrantStrategy.entered());
     assertTrue(reentrantStrategy.transferred());
+  }
+
+  function test_e2e_reentrantStrategy_cannotClaimSameUserTwiceAgainstSharedAccrual() public {
+    E2EPool pool2 = new E2EPool();
+    E2EToken underlying2 = new E2EToken('Underlying2', 'UND2', 18);
+    E2EAToken aToken2 = new E2EAToken(address(pool2), address(underlying2));
+    E2EToken reward2 = new E2EToken('Reward2', 'RWD2', 18);
+    E2ERewardsController controller2 = new E2ERewardsController(address(reward2), address(aToken2));
+
+    StaticATokenLM impl = new StaticATokenLM(
+      IPool(address(pool2)),
+      IRewardsController(address(controller2))
+    );
+    bytes memory initData = abi.encodeWithSelector(
+      StaticATokenLM.initialize.selector,
+      address(aToken2),
+      'Static aToken',
+      'stata'
+    );
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+      address(impl),
+      address(0xBEEF),
+      initData
+    );
+    StaticATokenLM local = StaticATokenLM(address(proxy));
+
+    E2EReentrantDrainStrategy reentrantStrategy = new E2EReentrantDrainStrategy(
+      address(controller2),
+      local,
+      USER,
+      address(reward2)
+    );
+    controller2.setTransferStrategy(address(reward2), address(reentrantStrategy));
+    controller2.setClaimer(USER, address(reentrantStrategy));
+
+    vm.prank(address(controller2));
+    reward2.approve(address(reentrantStrategy), type(uint256).max);
+
+    aToken2.mint(USER, USER_BALANCE);
+    vm.startPrank(USER);
+    aToken2.approve(address(local), USER_BALANCE);
+    local.deposit(USER_BALANCE, USER, 0, false);
+    vm.stopPrank();
+
+    aToken2.mint(USER2, USER_BALANCE);
+    vm.startPrank(USER2);
+    aToken2.approve(address(local), USER_BALANCE);
+    local.deposit(USER_BALANCE, USER2, 0, false);
+    vm.stopPrank();
+
+    controller2.setAssetIndex(REWARD_INDEX);
+    uint256 userClaimable = local.getClaimableRewards(USER, address(reward2));
+    uint256 user2Claimable = local.getClaimableRewards(USER2, address(reward2));
+    reward2.mint(address(controller2), userClaimable + user2Claimable);
+
+    address[] memory rewards = new address[](1);
+    rewards[0] = address(reward2);
+
+    vm.prank(USER);
+    local.claimRewards(USER, rewards);
+
+    assertEq(reward2.balanceOf(USER), userClaimable);
+    assertEq(local.getClaimableRewards(USER, address(reward2)), 0);
+    assertEq(local.getClaimableRewards(USER2, address(reward2)), user2Claimable);
+    assertEq(reentrantStrategy.transfers(), 1);
+
+    vm.prank(USER2);
+    local.claimRewards(USER2, rewards);
+
+    assertEq(reward2.balanceOf(USER2), user2Claimable);
   }
 
   function test_e2e_fallbackController_4argClaim() public {
