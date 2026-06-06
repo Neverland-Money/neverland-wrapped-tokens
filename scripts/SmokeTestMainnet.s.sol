@@ -279,7 +279,7 @@ contract SmokeTestMainnet is Script {
       if (selector == 0x08c379a0 && returndata.length >= 68) {
         string memory reason;
         assembly {
-          reason := add(returndata, 0x68)
+          reason := add(returndata, 0x44)
         }
         console2.log('%s revert: %s', label, reason);
         return;
