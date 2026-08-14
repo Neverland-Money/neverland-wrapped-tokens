@@ -12,29 +12,32 @@ import {NeverlandMonadMainnet} from '../src/NeverlandAddressBook.sol';
  *      without redeploying the entire factory infrastructure
  *
  * Usage:
- *   1. Add new reserve addresses to NeverlandAddressBook.sol
- *   2. Update FACTORY_ADDRESS below with your deployed factory
- *   3. Update NEW_RESERVES array with addresses of new reserves
- *   4. Run: forge script scripts/DeployAdditionalStaticTokens.s.sol:DeployAdditionalStaticTokens \
+ *   1. Add the new reserve and nToken addresses to NeverlandAddressBook.sol
+ *   2. Add the new reserves to getNewReserves() below
+ *   3. Run: forge script scripts/DeployAdditionalStaticTokens.s.sol:DeployAdditionalStaticTokens \
  *           --rpc-url monad --broadcast -vvv
+ *
+ * The script is idempotent: reserves that already have a wrapper are filtered out before the
+ * broadcast, so re-running it after a partial deployment is safe.
  */
 contract DeployAdditionalStaticTokens is Script {
-  // UPDATE THIS: Address of your deployed StaticATokenFactory
-  address constant FACTORY_ADDRESS = address(0); // UPDATE AFTER INITIAL DEPLOYMENT
+  address constant FACTORY_ADDRESS = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
 
+  /**
+   * @dev The most recent wrapper batch. Both are deployed, so a re-run reports them as already
+   *      wrapped and broadcasts nothing. Append the next newly listed reserve here rather than
+   *      clearing the list, so the script stays runnable as a coverage re-check.
+   */
   function getNewReserves() internal pure returns (address[] memory) {
-    // UPDATE THIS: Add new reserve addresses here
-    address[] memory reserves = new address[](0);
-
-    // Example for future reserves:
-    // reserves = new address[](2);
-    // reserves[0] = 0x...; // New reserve 1
-    // reserves[1] = 0x...; // New reserve 2
+    address[] memory reserves = new address[](2);
+    reserves[0] = NeverlandMonadMainnet.CBBTC; // -> wnCBBTC, 8 decimals, deployed 2026-08-14
+    reserves[1] = NeverlandMonadMainnet.XAUT0; // -> wnXAUT0, 6 decimals, deployed 2026-08-14
 
     return reserves;
   }
 
   function run() external {
+    require(block.chainid == 143, 'WRONG_CHAIN');
     require(FACTORY_ADDRESS != address(0), 'Update FACTORY_ADDRESS first');
 
     address[] memory newReserves = getNewReserves();
@@ -102,15 +105,35 @@ contract DeployAdditionalStaticTokens is Script {
     for (uint256 i = 0; i < filteredReserves.length; i++) {
       console.log('Reserve:', filteredReserves[i]);
       console.log('  Static Token:', newStaticTokens[i]);
+      _assertMatchesAddressBook(filteredReserves[i], newStaticTokens[i]);
     }
 
     console.log('\n========================================');
     console.log('[SUCCESS] %s static token(s) deployed!', deployCount);
     console.log('========================================');
     console.log('\nNext steps:');
-    console.log('1. Update NeverlandAddressBook.sol with new static token addresses');
+    console.log('1. Confirm NeverlandAddressBook.sol STATN_* entries match the addresses above');
     console.log('2. Run VerifyDeployment.s.sol to validate');
-    console.log('3. Share new addresses with Balancer team');
+    console.log('3. Share new addresses with integrators');
     console.log('');
+  }
+
+  /**
+   * @dev The wrapper address is CREATE2-deterministic, so the address book already pins what each
+   *      reserve must produce. A mismatch means the factory implementation, proxy admin or token
+   *      naming changed since those constants were derived, and every downstream consumer of the
+   *      address book would silently point at the wrong contract. Fail the run instead.
+   */
+  function _assertMatchesAddressBook(address reserve, address staticToken) internal pure {
+    address expected;
+    if (reserve == NeverlandMonadMainnet.CBBTC) {
+      expected = NeverlandMonadMainnet.STATN_CBBTC;
+    } else if (reserve == NeverlandMonadMainnet.XAUT0) {
+      expected = NeverlandMonadMainnet.STATN_XAUT0;
+    } else {
+      return; // no pinned expectation for this reserve
+    }
+
+    require(staticToken == expected, 'STATIC_TOKEN_ADDRESS_MISMATCH');
   }
 }

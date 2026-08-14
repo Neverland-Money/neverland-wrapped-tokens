@@ -8,6 +8,7 @@ import {ProxyAdmin} from 'solidity-utils/contracts/transparent-proxy/ProxyAdmin.
 import {TransparentUpgradeableProxy} from 'solidity-utils/contracts/transparent-proxy/TransparentUpgradeableProxy.sol';
 
 import {StaticATokenLM} from '../src/StaticATokenLM.sol';
+import {StaticATokenFactory} from '../src/StaticATokenFactory.sol';
 import {NeverlandMonadMainnet} from '../src/NeverlandAddressBook.sol';
 
 interface IRewardsControllerView {
@@ -23,8 +24,8 @@ interface IDustLockView {
 }
 
 /**
- * @notice Fork-only confirmation that, AFTER applying the 12 implementation upgrades to a fresh fork
- *         of current mainnet, the griefing vulnerability is dead and depositor state is preserved —
+ * @notice Fork-only confirmation that, AFTER applying the implementation upgrades to a fresh fork of
+ *         current mainnet, the griefing vulnerability is dead and depositor state is preserved —
  *         checked across wrappers with different underlying decimals (6 / 18 / 8).
  *
  *         This complements SimulateUpgradeFork (which proves deposit/withdraw/claim/rescue work) by
@@ -43,29 +44,31 @@ contract ConfirmUpgradeFork is Script {
 
     console2.log('=== confirm-upgrade fork @ block', block.number, '===');
 
-    // Apply all 12 ProxyAdmin.upgrade calls exactly as the timelock will.
-    address[] memory proxies = new address[](12);
-    proxies[0] = NeverlandMonadMainnet.STATN_WMON;
-    proxies[1] = NeverlandMonadMainnet.STATN_USDC;
-    proxies[2] = NeverlandMonadMainnet.STATN_USDT0;
-    proxies[3] = NeverlandMonadMainnet.STATN_WBTC;
-    proxies[4] = NeverlandMonadMainnet.STATN_WETH;
-    proxies[5] = NeverlandMonadMainnet.STATN_SMON;
-    proxies[6] = NeverlandMonadMainnet.STATN_SHMON;
-    proxies[7] = NeverlandMonadMainnet.STATN_GMON;
-    proxies[8] = NeverlandMonadMainnet.STATN_AUSD;
-    proxies[9] = NeverlandMonadMainnet.STATN_EARNAUSD;
-    proxies[10] = NeverlandMonadMainnet.STATN_LOAZND;
-    proxies[11] = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
+    // Apply every ProxyAdmin.upgrade call exactly as the timelock will. The wrapper set is read
+    // from the factory registry, so this stays in step with the exported batch as reserves are
+    // listed and wrapped.
+    address factoryProxy = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
+    address[] memory wrappers = StaticATokenFactory(factoryProxy).getStaticATokens();
+    require(wrappers.length > 0, 'NO_WRAPPERS');
+
+    // Gate on the same condition ExportUpgradeSafeBatch does. Without it this fork proof would pass
+    // for a wrapper set the export path refuses, so a green run here would not imply the batch can
+    // even be produced.
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      require(
+        NeverlandMonadMainnet.isPinnedStaticAToken(wrappers[i]),
+        'WRAPPER_NOT_IN_ADDRESS_BOOK'
+      );
+    }
 
     ProxyAdmin pa = ProxyAdmin(NeverlandMonadMainnet.PROXY_ADMIN);
     vm.startPrank(NeverlandMonadMainnet.PROXY_ADMIN_OWNER);
-    for (uint256 i = 0; i < 11; i++) {
-      pa.upgrade(TransparentUpgradeableProxy(payable(proxies[i])), tok);
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      pa.upgrade(TransparentUpgradeableProxy(payable(wrappers[i])), tok);
     }
-    pa.upgrade(TransparentUpgradeableProxy(payable(proxies[11])), fac);
+    pa.upgrade(TransparentUpgradeableProxy(payable(factoryProxy)), fac);
     vm.stopPrank();
-    console2.log('applied 12 upgrades');
+    console2.log('applied upgrades', wrappers.length + 1);
 
     // Prove the fix on a 6-, 18- and 8-decimal wrapper.
     _confirm('wnUSDC (6dec) ', NeverlandMonadMainnet.STATN_USDC, tok);

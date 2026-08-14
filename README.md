@@ -66,6 +66,8 @@ Initial deployment: February 2026
 
 Latest implementation upgrade: June 6, 2026
 
+Latest wrapper additions: August 14, 2026 (`wnCBBTC`, `wnXAUT0`)
+
 ### Core Infrastructure
 
 | Contract                             | Address                                      | Notes                                      |
@@ -99,6 +101,27 @@ Latest implementation upgrade: June 6, 2026
 | AUSD     | `0x82c370ba90E38ef6Acd8b1b078d34fD86FC6bAC9` | `wnAUSD`     | Wrapped Neverland AUSD     | 6        |
 | earnAUSD | `0xD45D54ad7Ae6D5dEdb0De7B283Fe0b4e2ba40217` | `wnEARNAUSD` | Wrapped Neverland earnAUSD | 6        |
 | loAZND   | `0xD786F7569C39A9F64E6A54Eb77db21364E90F279` | `wnLOAZND`   | Wrapped Neverland loAZND   | 18       |
+| cbBTC    | `0x98a297e6424787E57Af119949d7E00b721F832BB` | `wnCBBTC`    | Wrapped Neverland cbBTC    | 8        |
+| XAUt0    | `0x22139A346b6312EB0A9812C67CfCe4A694676d59` | `wnXAUT0`    | Wrapped Neverland XAUt0    | 6        |
+
+All 13 pool reserves are wrapped. The wrapper name comes from the underlying symbol and the wrapper symbol from the nToken symbol, both applied by the factory at creation.
+
+### Wrapping a Newly Listed Reserve
+
+Reserves are listed in `neverland-pool-operations`; wrapping them happens here, and the two are not otherwise linked. `NeverlandWrapperCoverageTest.test_everyPoolReserveHasAWrapper` walks the live reserve list and fails when a reserve has no wrapper, and `VerifyDeployment.s.sol` reports the same against live state.
+
+To wrap one, add the reserve and its nToken to `NeverlandAddressBook.sol`, add it to `getNewReserves()` in the deploy script, then:
+
+```bash
+forge script scripts/VerifyPreDeployment.s.sol:VerifyPreDeployment --rpc-url monad -vv
+
+forge script scripts/DeployAdditionalStaticTokens.s.sol:DeployAdditionalStaticTokens \
+  --rpc-url monad --broadcast -vvv
+```
+
+`createStaticATokens` is permissionless, so the deployer needs no privileged role — only gas (roughly 1.3M per wrapper). The script skips reserves that already have a wrapper, so re-running it is safe, and it reverts if a created address does not match the pinned constant in `NeverlandAddressBook.sol`.
+
+Wrapper addresses are CREATE2-deterministic — the factory salts on the underlying address — so a wrapper's address can be pinned in the address book before it is deployed. The salt does not cover `STATIC_A_TOKEN_IMPL`, so a pinned address is only valid while the factory keeps pointing at the same wrapper implementation. Deploy pending wrappers before an implementation upgrade, or re-derive the pins afterwards; `test_wrapperAddressPinsMatchChain` fails if a pin has gone stale.
 
 ## Reward Claims
 
@@ -178,6 +201,10 @@ Initial deployment scripts:
 - `scripts/VerifyPreDeployment.s.sol`
 - `scripts/VerifyDeployment.s.sol`
 
+Adding a wrapper for a newly listed reserve:
+
+- `scripts/DeployAdditionalStaticTokens.s.sol`: creates wrappers for reserves that do not have one, without redeploying the factory infrastructure.
+
 Implementation-upgrade scripts:
 
 - `scripts/DeployUpgradeImplementations.s.sol`: deploys replacement implementations only.
@@ -185,6 +212,8 @@ Implementation-upgrade scripts:
 - `scripts/ConfirmUpgradeFork.s.sol`: confirms the collect-hook fix and state preservation on a fork.
 - `scripts/SimulateUpgradeFork.s.sol`: fork-applies the upgrade and proves deposit, withdraw, claim, and rescue behavior.
 - `scripts/ValidateRewardsFork.s.sol`: exercises live reward paths on a fork.
+
+The three upgrade scripts read the proxy set from `StaticATokenFactory.getStaticATokens()` at run time rather than from a hardcoded list. A hardcoded set would silently omit wrappers created after the script was last edited, leaving them on an implementation governance believed it had replaced. Any wrapper the factory has registered but the address book does not know about aborts the export.
 
 Post-deploy verification example:
 
@@ -206,6 +235,7 @@ forge script scripts/VerifyDeployment.s.sol:VerifyDeployment --rpc-url monad -vv
 - `src/interfaces/`: public wrapper, factory, Dust controller, and helper interfaces.
 - `scripts/`: deployment, upgrade, verification, and fork validation.
 - `tests/`: local unit, E2E, reward, rescue, oracle, and meta-transaction tests.
+- `tests/NeverlandWrapperCoverage.t.sol`: Monad-fork guard that every listed reserve has a wrapper, plus the address-book pins and wrapper metadata. Skips when `RPC_MONAD` is unset.
 
 ## Verification
 
