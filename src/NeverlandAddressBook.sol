@@ -88,4 +88,43 @@ library NeverlandMonadMainnet {
   address internal constant STATN_LOAZND = 0xD786F7569C39A9F64E6A54Eb77db21364E90F279;
   address internal constant STATN_CBBTC = 0x98a297e6424787E57Af119949d7E00b721F832BB;
   address internal constant STATN_XAUT0 = 0x22139A346b6312EB0A9812C67CfCe4A694676d59;
+
+  // ============================================
+  // PINNED WRAPPER SET
+  // ============================================
+
+  /**
+   * @notice Every static wrapper this repo knows about, whether already deployed or pinned ahead of
+   *         its deployment.
+   * @dev Scripts that act on the live factory registry check it against this set, so a wrapper
+   *      created outside this repo is rejected rather than silently upgraded. Kept here rather than
+   *      in each script so the set cannot drift between the export path and the fork proofs.
+   */
+  function staticATokens() internal pure returns (address[] memory wrappers) {
+    wrappers = new address[](13);
+    wrappers[0] = STATN_WMON;
+    wrappers[1] = STATN_USDC;
+    wrappers[2] = STATN_USDT0;
+    wrappers[3] = STATN_WBTC;
+    wrappers[4] = STATN_WETH;
+    wrappers[5] = STATN_SMON;
+    wrappers[6] = STATN_SHMON;
+    wrappers[7] = STATN_GMON;
+    wrappers[8] = STATN_AUSD;
+    wrappers[9] = STATN_EARNAUSD;
+    wrappers[10] = STATN_LOAZND;
+    wrappers[11] = STATN_CBBTC;
+    wrappers[12] = STATN_XAUT0;
+  }
+
+  /// @notice Whether `wrapper` is one of the wrappers pinned in this address book.
+  function isPinnedStaticAToken(address wrapper) internal pure returns (bool) {
+    address[] memory wrappers = staticATokens();
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      if (wrappers[i] == wrapper) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

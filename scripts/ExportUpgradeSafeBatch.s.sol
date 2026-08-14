@@ -161,16 +161,11 @@ contract ExportUpgradeSafeBatch is Script {
     // address book has never heard of means someone deployed outside this repo, and the batch would
     // otherwise upgrade a contract nobody here has reviewed. The reverse direction is deliberately
     // not asserted: the address book legitimately pins wrappers ahead of their deployment.
-    address[] memory known = _addressBookWrappers();
     for (uint256 i = 0; i < factoryTokens.length; i++) {
-      bool found;
-      for (uint256 j = 0; j < known.length; j++) {
-        if (factoryTokens[i] == known[j]) {
-          found = true;
-          break;
-        }
-      }
-      require(found, 'WRAPPER_NOT_IN_ADDRESS_BOOK');
+      require(
+        NeverlandMonadMainnet.isPinnedStaticAToken(factoryTokens[i]),
+        'WRAPPER_NOT_IN_ADDRESS_BOOK'
+      );
     }
   }
 
@@ -184,23 +179,6 @@ contract ExportUpgradeSafeBatch is Script {
       proxies[i] = wrappers[i];
     }
     proxies[wrappers.length] = factoryProxy;
-  }
-
-  function _addressBookWrappers() internal pure returns (address[] memory wrappers) {
-    wrappers = new address[](13);
-    wrappers[0] = NeverlandMonadMainnet.STATN_WMON;
-    wrappers[1] = NeverlandMonadMainnet.STATN_USDC;
-    wrappers[2] = NeverlandMonadMainnet.STATN_USDT0;
-    wrappers[3] = NeverlandMonadMainnet.STATN_WBTC;
-    wrappers[4] = NeverlandMonadMainnet.STATN_WETH;
-    wrappers[5] = NeverlandMonadMainnet.STATN_SMON;
-    wrappers[6] = NeverlandMonadMainnet.STATN_SHMON;
-    wrappers[7] = NeverlandMonadMainnet.STATN_GMON;
-    wrappers[8] = NeverlandMonadMainnet.STATN_AUSD;
-    wrappers[9] = NeverlandMonadMainnet.STATN_EARNAUSD;
-    wrappers[10] = NeverlandMonadMainnet.STATN_LOAZND;
-    wrappers[11] = NeverlandMonadMainnet.STATN_CBBTC;
-    wrappers[12] = NeverlandMonadMainnet.STATN_XAUT0;
   }
 
   function _requireCode(address target, string memory error) internal view {

@@ -81,8 +81,8 @@ contract SimulateUpgradeFork is Script {
     uint256 rewardCountBefore = wrapper.rewardTokens().length;
     require(userStaticBefore == preUpgradeShares, 'PRE_BALANCE_MISMATCH');
 
-    _applyUpgrades(newTokenImpl, newFactoryImpl);
-    _assertImplementations(newTokenImpl, newFactoryImpl);
+    address[] memory upgradedProxies = _applyUpgrades(newTokenImpl, newFactoryImpl);
+    _assertImplementations(upgradedProxies, newTokenImpl, newFactoryImpl);
 
     require(wrapper.balanceOf(user) == userStaticBefore, 'USER_BALANCE_CHANGED');
     require(wrapper.totalSupply() == totalSupplyBefore, 'TOTAL_SUPPLY_CHANGED');
@@ -125,9 +125,13 @@ contract SimulateUpgradeFork is Script {
     console2.log('pre-upgrade deposit shares', shares);
   }
 
-  function _applyUpgrades(address newTokenImpl, address newFactoryImpl) internal {
+  /// @dev Returns the proxy set as it stood BEFORE the upgrade, for the post-conditions to use.
+  function _applyUpgrades(
+    address newTokenImpl,
+    address newFactoryImpl
+  ) internal returns (address[] memory proxies) {
     ProxyAdmin proxyAdmin = ProxyAdmin(NeverlandMonadMainnet.PROXY_ADMIN);
-    address[] memory proxies = _upgradeProxies();
+    proxies = _upgradeProxies();
     uint256 wrapperCount = proxies.length - 1;
 
     vm.startPrank(NeverlandMonadMainnet.PROXY_ADMIN_OWNER);
@@ -140,13 +144,28 @@ contract SimulateUpgradeFork is Script {
     console2.log('applied ProxyAdmin.upgrade calls', proxies.length);
   }
 
-  function _assertImplementations(address newTokenImpl, address newFactoryImpl) internal view {
-    address[] memory proxies = _upgradeProxies();
+  /**
+   * @dev Takes the pre-upgrade snapshot rather than re-reading the registry. Re-reading would source
+   *      the post-condition from the factory implementation under test: one that enumerated a subset
+   *      would shrink this loop and pass, which is the regression this proof exists to catch. The
+   *      registry is then compared against the snapshot so a changed enumeration fails loudly.
+   */
+  function _assertImplementations(
+    address[] memory proxies,
+    address newTokenImpl,
+    address newFactoryImpl
+  ) internal view {
     uint256 wrapperCount = proxies.length - 1;
     for (uint256 i = 0; i < wrapperCount; i++) {
       require(_readImplementation(proxies[i]) == newTokenImpl, 'TOKEN_IMPL_NOT_SET');
     }
     require(_readImplementation(proxies[wrapperCount]) == newFactoryImpl, 'FACTORY_IMPL_NOT_SET');
+
+    address[] memory postUpgrade = StaticATokenFactory(proxies[wrapperCount]).getStaticATokens();
+    require(postUpgrade.length == wrapperCount, 'REGISTRY_LENGTH_CHANGED');
+    for (uint256 i = 0; i < wrapperCount; i++) {
+      require(postUpgrade[i] == proxies[i], 'REGISTRY_ENTRY_CHANGED');
+    }
   }
 
   function _proveDepositWithdraw(StaticATokenLM wrapper, address user) internal {
@@ -247,6 +266,15 @@ contract SimulateUpgradeFork is Script {
     address factoryProxy = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
     address[] memory wrappers = StaticATokenFactory(factoryProxy).getStaticATokens();
     require(wrappers.length > 0, 'NO_WRAPPERS');
+
+    // Gate on the same condition ExportUpgradeSafeBatch does, so this simulation cannot pass for a
+    // wrapper set the export path refuses.
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      require(
+        NeverlandMonadMainnet.isPinnedStaticAToken(wrappers[i]),
+        'WRAPPER_NOT_IN_ADDRESS_BOOK'
+      );
+    }
 
     proxies = new address[](wrappers.length + 1);
     for (uint256 i = 0; i < wrappers.length; i++) {

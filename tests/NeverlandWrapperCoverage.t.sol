@@ -37,10 +37,11 @@ contract NeverlandWrapperCoverageTest is Test {
       return;
     }
 
+    // An unset RPC_MONAD is a legitimate skip: CI has no Monad endpoint. An endpoint pointing at
+    // the wrong chain is operator error, and skipping it would hide the coverage regression this
+    // file exists to catch behind a green suite. Those two cases end differently on purpose.
     vm.createSelectFork(rpc);
-    if (block.chainid != MONAD_CHAIN_ID) {
-      return;
-    }
+    require(block.chainid == MONAD_CHAIN_ID, 'RPC_MONAD_WRONG_CHAIN');
 
     factory = StaticATokenFactory(NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY);
     forked = true;

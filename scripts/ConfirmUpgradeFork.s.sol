@@ -51,6 +51,16 @@ contract ConfirmUpgradeFork is Script {
     address[] memory wrappers = StaticATokenFactory(factoryProxy).getStaticATokens();
     require(wrappers.length > 0, 'NO_WRAPPERS');
 
+    // Gate on the same condition ExportUpgradeSafeBatch does. Without it this fork proof would pass
+    // for a wrapper set the export path refuses, so a green run here would not imply the batch can
+    // even be produced.
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      require(
+        NeverlandMonadMainnet.isPinnedStaticAToken(wrappers[i]),
+        'WRAPPER_NOT_IN_ADDRESS_BOOK'
+      );
+    }
+
     ProxyAdmin pa = ProxyAdmin(NeverlandMonadMainnet.PROXY_ADMIN);
     vm.startPrank(NeverlandMonadMainnet.PROXY_ADMIN_OWNER);
     for (uint256 i = 0; i < wrappers.length; i++) {
