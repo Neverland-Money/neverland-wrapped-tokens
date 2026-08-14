@@ -150,6 +150,24 @@ contract VerifyPreDeployment is Script {
         expectedDecimals: 18
       })
     );
+
+    reserves.push(
+      ReserveConfig({
+        underlying: 0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b,
+        nToken: 0xcc7f5F78Bedfc65c2fDD93C7537832eEa1324774,
+        expectedSymbol: 'nCBBTC',
+        expectedDecimals: 8
+      })
+    );
+
+    reserves.push(
+      ReserveConfig({
+        underlying: 0x01bFF41798a0BcF287b996046Ca68b395DbC1071,
+        nToken: 0x3351683194670680Edd1700Bfbe146403684AEdf,
+        expectedSymbol: 'nXAUT0',
+        expectedDecimals: 6
+      })
+    );
   }
 
   function run() external {

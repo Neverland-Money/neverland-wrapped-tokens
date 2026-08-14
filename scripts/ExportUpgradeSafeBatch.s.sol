@@ -12,8 +12,13 @@ import {NeverlandMonadMainnet} from '../src/NeverlandAddressBook.sol';
  * @title ExportUpgradeSafeBatch
  * @notice Validates already-deployed StaticATokenLM + StaticATokenFactory implementations supplied
  *         via env and writes a Gnosis Safe Transaction Builder batch JSON containing the
- *         `ProxyAdmin.upgrade(proxy, impl)` calls for all 11 live wrapper proxies plus the factory
+ *         `ProxyAdmin.upgrade(proxy, impl)` calls for every live wrapper proxy plus the factory
  *         proxy.
+ *
+ * @dev    The wrapper set is read from `StaticATokenFactory.getStaticATokens()` at export time, not
+ *         hardcoded. Reserves get listed on the Pool and wrapped over time, and a hardcoded set
+ *         would quietly omit the newest wrappers from the upgrade batch, leaving them running an
+ *         implementation governance believed it had replaced.
  *
  * @dev    The emitted JSON is the INPUT to neverland-contracts'
  *         `convert-safe-batch-to-timelock-payload` task (governance lane), which wraps these calls
@@ -52,14 +57,16 @@ contract ExportUpgradeSafeBatch is Script {
     address newFactoryImpl = vm.envAddress('NEW_FACTORY_IMPL');
     _validateImplementations(proxyAdmin, factoryProxy, newTokenImpl, newFactoryImpl);
 
-    // 11 wrapper proxies -> new token impl ; factory proxy -> new factory impl.
-    address[] memory proxies = _upgradeProxies();
+    // Every wrapper proxy -> new token impl ; factory proxy -> new factory impl.
+    address[] memory proxies = _upgradeProxies(factoryProxy);
     _validateProxySet(factoryProxy, proxyAdmin, proxies);
-    address[] memory impls = new address[](12);
-    for (uint256 i = 0; i < 11; i++) {
+
+    uint256 wrapperCount = proxies.length - 1;
+    address[] memory impls = new address[](proxies.length);
+    for (uint256 i = 0; i < wrapperCount; i++) {
       impls[i] = newTokenImpl;
     }
-    impls[11] = newFactoryImpl;
+    impls[wrapperCount] = newFactoryImpl;
 
     string memory txs = '';
     for (uint256 i = 0; i < proxies.length; i++) {
@@ -79,7 +86,9 @@ contract ExportUpgradeSafeBatch is Script {
       '{"version":"1.0","chainId":"',
       CHAIN_ID,
       '","meta":{"name":"wrapped-n-tokens implementation upgrade",',
-      '"description":"ProxyAdmin.upgrade: 11 wrapper proxies -> new StaticATokenLM impl + factory proxy -> new StaticATokenFactory impl (rewards-claim hardfix + ERC20/ERC721 rescue, revision 3)",',
+      '"description":"ProxyAdmin.upgrade: ',
+      vm.toString(wrapperCount),
+      ' wrapper proxies -> new StaticATokenLM impl + factory proxy -> new StaticATokenFactory impl (rewards-claim hardfix + ERC20/ERC721 rescue, revision 3)",',
       '"txBuilderVersion":"1.18.0"},"transactions":[',
       txs,
       ']}'
@@ -138,9 +147,9 @@ contract ExportUpgradeSafeBatch is Script {
     address[] memory proxies
   ) internal view {
     address[] memory factoryTokens = StaticATokenFactory(factoryProxy).getStaticATokens();
-    require(factoryTokens.length == 11, 'FACTORY_TOKEN_COUNT');
-    require(proxies.length == 12, 'PROXY_COUNT');
-    require(proxies[11] == factoryProxy, 'FACTORY_PROXY_MISSING');
+    require(factoryTokens.length > 0, 'FACTORY_TOKEN_COUNT');
+    require(proxies.length == factoryTokens.length + 1, 'PROXY_COUNT');
+    require(proxies[proxies.length - 1] == factoryProxy, 'FACTORY_PROXY_MISSING');
 
     for (uint256 i = 0; i < proxies.length; i++) {
       require(proxies[i] != address(0), 'PROXY_ZERO');
@@ -148,32 +157,50 @@ contract ExportUpgradeSafeBatch is Script {
       require(_readProxyAdmin(proxies[i]) == proxyAdmin, 'PROXY_ADMIN');
     }
 
-    for (uint256 i = 0; i < 11; i++) {
+    // Every wrapper the factory has registered must be one this repo knows about. A wrapper the
+    // address book has never heard of means someone deployed outside this repo, and the batch would
+    // otherwise upgrade a contract nobody here has reviewed. The reverse direction is deliberately
+    // not asserted: the address book legitimately pins wrappers ahead of their deployment.
+    address[] memory known = _addressBookWrappers();
+    for (uint256 i = 0; i < factoryTokens.length; i++) {
       bool found;
-      for (uint256 j = 0; j < factoryTokens.length; j++) {
-        if (proxies[i] == factoryTokens[j]) {
+      for (uint256 j = 0; j < known.length; j++) {
+        if (factoryTokens[i] == known[j]) {
           found = true;
           break;
         }
       }
-      require(found, 'PROXY_NOT_IN_FACTORY');
+      require(found, 'WRAPPER_NOT_IN_ADDRESS_BOOK');
     }
   }
 
-  function _upgradeProxies() internal pure returns (address[] memory proxies) {
-    proxies = new address[](12);
-    proxies[0] = NeverlandMonadMainnet.STATN_WMON;
-    proxies[1] = NeverlandMonadMainnet.STATN_USDC;
-    proxies[2] = NeverlandMonadMainnet.STATN_USDT0;
-    proxies[3] = NeverlandMonadMainnet.STATN_WBTC;
-    proxies[4] = NeverlandMonadMainnet.STATN_WETH;
-    proxies[5] = NeverlandMonadMainnet.STATN_SMON;
-    proxies[6] = NeverlandMonadMainnet.STATN_SHMON;
-    proxies[7] = NeverlandMonadMainnet.STATN_GMON;
-    proxies[8] = NeverlandMonadMainnet.STATN_AUSD;
-    proxies[9] = NeverlandMonadMainnet.STATN_EARNAUSD;
-    proxies[10] = NeverlandMonadMainnet.STATN_LOAZND;
-    proxies[11] = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
+  /**
+   * @dev The live wrapper set, read from the factory registry, followed by the factory proxy itself.
+   */
+  function _upgradeProxies(address factoryProxy) internal view returns (address[] memory proxies) {
+    address[] memory wrappers = StaticATokenFactory(factoryProxy).getStaticATokens();
+    proxies = new address[](wrappers.length + 1);
+    for (uint256 i = 0; i < wrappers.length; i++) {
+      proxies[i] = wrappers[i];
+    }
+    proxies[wrappers.length] = factoryProxy;
+  }
+
+  function _addressBookWrappers() internal pure returns (address[] memory wrappers) {
+    wrappers = new address[](13);
+    wrappers[0] = NeverlandMonadMainnet.STATN_WMON;
+    wrappers[1] = NeverlandMonadMainnet.STATN_USDC;
+    wrappers[2] = NeverlandMonadMainnet.STATN_USDT0;
+    wrappers[3] = NeverlandMonadMainnet.STATN_WBTC;
+    wrappers[4] = NeverlandMonadMainnet.STATN_WETH;
+    wrappers[5] = NeverlandMonadMainnet.STATN_SMON;
+    wrappers[6] = NeverlandMonadMainnet.STATN_SHMON;
+    wrappers[7] = NeverlandMonadMainnet.STATN_GMON;
+    wrappers[8] = NeverlandMonadMainnet.STATN_AUSD;
+    wrappers[9] = NeverlandMonadMainnet.STATN_EARNAUSD;
+    wrappers[10] = NeverlandMonadMainnet.STATN_LOAZND;
+    wrappers[11] = NeverlandMonadMainnet.STATN_CBBTC;
+    wrappers[12] = NeverlandMonadMainnet.STATN_XAUT0;
   }
 
   function _requireCode(address target, string memory error) internal view {

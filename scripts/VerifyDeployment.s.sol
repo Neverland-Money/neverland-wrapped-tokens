@@ -68,6 +68,8 @@ contract VerifyDeployment is Script {
   address constant AUSD = 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a;
   address constant EARNAUSD = 0x103222f020e98Bba0AD9809A011FDF8e6F067496;
   address constant LOAZND = 0x9c82eB49B51F7Dc61e22Ff347931CA32aDc6cd90;
+  address constant CBBTC = 0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b;
+  address constant XAUT0 = 0x01bFF41798a0BcF287b996046Ca68b395DbC1071;
 
   // nToken addresses
   address constant N_WMON = 0xD0fd2Cf7F6CEff4F96B1161F5E995D5843326154;
@@ -81,6 +83,8 @@ contract VerifyDeployment is Script {
   address constant N_AUSD = 0x784999fc2Dd132a41D1Cc0F1aE9805854BaD1f2D;
   address constant N_EARNAUSD = 0xaCaaA891b30E13D024AB67b6EcA9c2EcBD8cf52b;
   address constant N_LOAZND = 0x293e2f01a38Fe690Eb8E570AB952b24b225113a7;
+  address constant N_CBBTC = 0xcc7f5F78Bedfc65c2fDD93C7537832eEa1324774;
+  address constant N_XAUT0 = 0x3351683194670680Edd1700Bfbe146403684AEdf;
 
   // Factory cache
   StaticATokenFactory internal _factory;
@@ -259,8 +263,57 @@ contract VerifyDeployment is Script {
     _verifyStaticToken(AUSD, N_AUSD, 'nAUSD');
     _verifyStaticToken(EARNAUSD, N_EARNAUSD, 'nEARNAUSD');
     _verifyStaticToken(LOAZND, N_LOAZND, 'nLOAZND');
+    _verifyStaticToken(CBBTC, N_CBBTC, 'nCBBTC');
+    _verifyStaticToken(XAUT0, N_XAUT0, 'nXAUT0');
+
+    _verifyNoUnwrappedReserve();
 
     console.log('All static tokens verified\n');
+  }
+
+  /**
+   * @dev The explicit list above only proves the reserves this script knows about are wrapped. This
+   *      reads the live reserve list instead, so a reserve listed on the Pool after this script was
+   *      last touched is reported as unwrapped rather than silently ignored.
+   */
+  function _verifyNoUnwrappedReserve() internal {
+    console.log('=== Reserve Coverage ===');
+
+    address[] memory poolReserves;
+    try IPool(EXPECTED_POOL).getReservesList() returns (address[] memory retrieved) {
+      poolReserves = retrieved;
+    } catch {
+      _failCall('Pool.getReservesList()');
+      console.log('');
+      return;
+    }
+
+    uint256 unwrapped;
+    for (uint256 i = 0; i < poolReserves.length; i++) {
+      address staticToken;
+      try _factory.getStaticAToken(poolReserves[i]) returns (address tokenAddr) {
+        staticToken = tokenAddr;
+      } catch {
+        _failCall('Factory.getStaticAToken()');
+        continue;
+      }
+
+      if (staticToken == address(0)) {
+        console.log('  [FAIL]: Pool reserve has no static wrapper');
+        console.log('    Reserve: %s', poolReserves[i]);
+        unwrapped++;
+        failedTests++;
+        totalTests++;
+      }
+    }
+
+    if (unwrapped == 0) {
+      console.log('  [PASS]: all %s Pool reserves have a static wrapper', poolReserves.length);
+      passedTests++;
+      totalTests++;
+    }
+
+    console.log('');
   }
 
   function _verifyStaticToken(

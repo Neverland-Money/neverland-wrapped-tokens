@@ -36,6 +36,8 @@ library NeverlandMonadMainnet {
   address internal constant AUSD = 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a;
   address internal constant EARNAUSD = 0x103222f020e98Bba0AD9809A011FDF8e6F067496;
   address internal constant LOAZND = 0x9c82eB49B51F7Dc61e22Ff347931CA32aDc6cd90;
+  address internal constant CBBTC = 0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b;
+  address internal constant XAUT0 = 0x01bFF41798a0BcF287b996046Ca68b395DbC1071;
 
   // ============================================
   // nTOKENS (aTokens)
@@ -52,6 +54,8 @@ library NeverlandMonadMainnet {
   address internal constant N_AUSD = 0x784999fc2Dd132a41D1Cc0F1aE9805854BaD1f2D;
   address internal constant N_EARNAUSD = 0xaCaaA891b30E13D024AB67b6EcA9c2EcBD8cf52b;
   address internal constant N_LOAZND = 0x293e2f01a38Fe690Eb8E570AB952b24b225113a7;
+  address internal constant N_CBBTC = 0xcc7f5F78Bedfc65c2fDD93C7537832eEa1324774;
+  address internal constant N_XAUT0 = 0x3351683194670680Edd1700Bfbe146403684AEdf;
 
   // ============================================
   // STATIC ATOKEN INFRASTRUCTURE
@@ -82,4 +86,6 @@ library NeverlandMonadMainnet {
   address internal constant STATN_AUSD = 0x82c370ba90E38ef6Acd8b1b078d34fD86FC6bAC9;
   address internal constant STATN_EARNAUSD = 0xD45D54ad7Ae6D5dEdb0De7B283Fe0b4e2ba40217;
   address internal constant STATN_LOAZND = 0xD786F7569C39A9F64E6A54Eb77db21364E90F279;
+  address internal constant STATN_CBBTC = 0x98a297e6424787E57Af119949d7E00b721F832BB;
+  address internal constant STATN_XAUT0 = 0x22139A346b6312EB0A9812C67CfCe4A694676d59;
 }
