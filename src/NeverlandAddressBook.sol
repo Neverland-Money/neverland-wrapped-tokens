@@ -38,6 +38,7 @@ library NeverlandMonadMainnet {
   address internal constant LOAZND = 0x9c82eB49B51F7Dc61e22Ff347931CA32aDc6cd90;
   address internal constant CBBTC = 0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b;
   address internal constant XAUT0 = 0x01bFF41798a0BcF287b996046Ca68b395DbC1071;
+  address internal constant HMON = 0x06aB4F89B4abAeE213a8Cf64188DEa47e4AB11EB;
 
   // ============================================
   // nTOKENS (aTokens)
@@ -56,6 +57,7 @@ library NeverlandMonadMainnet {
   address internal constant N_LOAZND = 0x293e2f01a38Fe690Eb8E570AB952b24b225113a7;
   address internal constant N_CBBTC = 0xcc7f5F78Bedfc65c2fDD93C7537832eEa1324774;
   address internal constant N_XAUT0 = 0x3351683194670680Edd1700Bfbe146403684AEdf;
+  address internal constant N_HMON = 0xC4F61ddA3aDc4059e3e5c953A7641c6CC24E64f2;
 
   // ============================================
   // STATIC ATOKEN INFRASTRUCTURE
@@ -88,6 +90,7 @@ library NeverlandMonadMainnet {
   address internal constant STATN_LOAZND = 0xD786F7569C39A9F64E6A54Eb77db21364E90F279;
   address internal constant STATN_CBBTC = 0x98a297e6424787E57Af119949d7E00b721F832BB;
   address internal constant STATN_XAUT0 = 0x22139A346b6312EB0A9812C67CfCe4A694676d59;
+  address internal constant STATN_HMON = 0x153bDD03C6040B99AEb1aAEcc36eA5BE194edF55;
 
   // ============================================
   // PINNED WRAPPER SET
@@ -101,7 +104,7 @@ library NeverlandMonadMainnet {
    *      in each script so the set cannot drift between the export path and the fork proofs.
    */
   function staticATokens() internal pure returns (address[] memory wrappers) {
-    wrappers = new address[](13);
+    wrappers = new address[](14);
     wrappers[0] = STATN_WMON;
     wrappers[1] = STATN_USDC;
     wrappers[2] = STATN_USDT0;
@@ -115,6 +118,7 @@ library NeverlandMonadMainnet {
     wrappers[10] = STATN_LOAZND;
     wrappers[11] = STATN_CBBTC;
     wrappers[12] = STATN_XAUT0;
+    wrappers[13] = STATN_HMON;
   }
 
   /// @notice Whether `wrapper` is one of the wrappers pinned in this address book.

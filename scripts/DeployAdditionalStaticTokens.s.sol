@@ -24,14 +24,14 @@ contract DeployAdditionalStaticTokens is Script {
   address constant FACTORY_ADDRESS = NeverlandMonadMainnet.STATIC_A_TOKEN_FACTORY;
 
   /**
-   * @dev The most recent wrapper batch. Both are deployed, so a re-run reports them as already
-   *      wrapped and broadcasts nothing. Append the next newly listed reserve here rather than
-   *      clearing the list, so the script stays runnable as a coverage re-check.
+   * @dev Wrapper additions are retained across batches. Already deployed wrappers are skipped.
+   *      Append newly listed reserves here so the script stays runnable as a coverage re-check.
    */
   function getNewReserves() internal pure returns (address[] memory) {
-    address[] memory reserves = new address[](2);
+    address[] memory reserves = new address[](3);
     reserves[0] = NeverlandMonadMainnet.CBBTC; // -> wnCBBTC, 8 decimals, deployed 2026-08-14
     reserves[1] = NeverlandMonadMainnet.XAUT0; // -> wnXAUT0, 6 decimals, deployed 2026-08-14
+    reserves[2] = NeverlandMonadMainnet.HMON; // -> wnHMON, 18 decimals, deployed 2026-10-08
 
     return reserves;
   }
@@ -130,6 +130,8 @@ contract DeployAdditionalStaticTokens is Script {
       expected = NeverlandMonadMainnet.STATN_CBBTC;
     } else if (reserve == NeverlandMonadMainnet.XAUT0) {
       expected = NeverlandMonadMainnet.STATN_XAUT0;
+    } else if (reserve == NeverlandMonadMainnet.HMON) {
+      expected = NeverlandMonadMainnet.STATN_HMON;
     } else {
       return; // no pinned expectation for this reserve
     }

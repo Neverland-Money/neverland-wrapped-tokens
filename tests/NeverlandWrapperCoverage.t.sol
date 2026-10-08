@@ -284,7 +284,7 @@ contract NeverlandWrapperCoverageTest is Test {
 
   /// @dev Index-aligned with _addressBookNTokens and _addressBookWrappers.
   function _addressBookUnderlyings() internal pure returns (address[] memory entries) {
-    entries = new address[](13);
+    entries = new address[](14);
     entries[0] = NeverlandMonadMainnet.WMON;
     entries[1] = NeverlandMonadMainnet.USDC;
     entries[2] = NeverlandMonadMainnet.USDT0;
@@ -298,10 +298,11 @@ contract NeverlandWrapperCoverageTest is Test {
     entries[10] = NeverlandMonadMainnet.LOAZND;
     entries[11] = NeverlandMonadMainnet.CBBTC;
     entries[12] = NeverlandMonadMainnet.XAUT0;
+    entries[13] = NeverlandMonadMainnet.HMON;
   }
 
   function _addressBookNTokens() internal pure returns (address[] memory entries) {
-    entries = new address[](13);
+    entries = new address[](14);
     entries[0] = NeverlandMonadMainnet.N_WMON;
     entries[1] = NeverlandMonadMainnet.N_USDC;
     entries[2] = NeverlandMonadMainnet.N_USDT0;
@@ -315,10 +316,11 @@ contract NeverlandWrapperCoverageTest is Test {
     entries[10] = NeverlandMonadMainnet.N_LOAZND;
     entries[11] = NeverlandMonadMainnet.N_CBBTC;
     entries[12] = NeverlandMonadMainnet.N_XAUT0;
+    entries[13] = NeverlandMonadMainnet.N_HMON;
   }
 
   function _addressBookWrappers() internal pure returns (address[] memory entries) {
-    entries = new address[](13);
+    entries = new address[](14);
     entries[0] = NeverlandMonadMainnet.STATN_WMON;
     entries[1] = NeverlandMonadMainnet.STATN_USDC;
     entries[2] = NeverlandMonadMainnet.STATN_USDT0;
@@ -332,5 +334,6 @@ contract NeverlandWrapperCoverageTest is Test {
     entries[10] = NeverlandMonadMainnet.STATN_LOAZND;
     entries[11] = NeverlandMonadMainnet.STATN_CBBTC;
     entries[12] = NeverlandMonadMainnet.STATN_XAUT0;
+    entries[13] = NeverlandMonadMainnet.STATN_HMON;
   }
 }

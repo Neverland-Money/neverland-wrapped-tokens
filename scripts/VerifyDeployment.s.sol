@@ -70,6 +70,7 @@ contract VerifyDeployment is Script {
   address constant LOAZND = 0x9c82eB49B51F7Dc61e22Ff347931CA32aDc6cd90;
   address constant CBBTC = 0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b;
   address constant XAUT0 = 0x01bFF41798a0BcF287b996046Ca68b395DbC1071;
+  address constant HMON = 0x06aB4F89B4abAeE213a8Cf64188DEa47e4AB11EB;
 
   // nToken addresses
   address constant N_WMON = 0xD0fd2Cf7F6CEff4F96B1161F5E995D5843326154;
@@ -85,6 +86,7 @@ contract VerifyDeployment is Script {
   address constant N_LOAZND = 0x293e2f01a38Fe690Eb8E570AB952b24b225113a7;
   address constant N_CBBTC = 0xcc7f5F78Bedfc65c2fDD93C7537832eEa1324774;
   address constant N_XAUT0 = 0x3351683194670680Edd1700Bfbe146403684AEdf;
+  address constant N_HMON = 0xC4F61ddA3aDc4059e3e5c953A7641c6CC24E64f2;
 
   // Factory cache
   StaticATokenFactory internal _factory;
@@ -265,6 +267,7 @@ contract VerifyDeployment is Script {
     _verifyStaticToken(LOAZND, N_LOAZND, 'nLOAZND');
     _verifyStaticToken(CBBTC, N_CBBTC, 'nCBBTC');
     _verifyStaticToken(XAUT0, N_XAUT0, 'nXAUT0');
+    _verifyStaticToken(HMON, N_HMON, 'nHMON');
 
     _verifyNoUnwrappedReserve();
 
