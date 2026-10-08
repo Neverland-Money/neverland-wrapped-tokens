@@ -168,6 +168,15 @@ contract VerifyPreDeployment is Script {
         expectedDecimals: 6
       })
     );
+
+    reserves.push(
+      ReserveConfig({
+        underlying: 0x06aB4F89B4abAeE213a8Cf64188DEa47e4AB11EB,
+        nToken: 0xC4F61ddA3aDc4059e3e5c953A7641c6CC24E64f2,
+        expectedSymbol: 'nHMON',
+        expectedDecimals: 18
+      })
+    );
   }
 
   function run() external {

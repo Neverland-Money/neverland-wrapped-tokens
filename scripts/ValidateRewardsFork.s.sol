@@ -1082,6 +1082,7 @@ contract ValidateRewardsFork is Script {
     if (atoken == NeverlandMonadMainnet.N_LOAZND) return NeverlandMonadMainnet.LOAZND;
     if (atoken == NeverlandMonadMainnet.N_CBBTC) return NeverlandMonadMainnet.CBBTC;
     if (atoken == NeverlandMonadMainnet.N_XAUT0) return NeverlandMonadMainnet.XAUT0;
+    if (atoken == NeverlandMonadMainnet.N_HMON) return NeverlandMonadMainnet.HMON;
     revert('ATOKEN_NOT_IN_ADDRESS_BOOK');
   }
 

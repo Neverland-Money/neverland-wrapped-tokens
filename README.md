@@ -66,7 +66,7 @@ Initial deployment: February 2026
 
 Latest implementation upgrade: June 6, 2026
 
-Latest wrapper additions: August 14, 2026 (`wnCBBTC`, `wnXAUT0`)
+Latest wrapper addition: October 8, 2026 (`wnHMON`, [deployment transaction](https://monadvision.com/tx/0xb39cd35d8a5fc329e44996c575b6f55b2bc1185409240a3f2c50136394bc8a39))
 
 ### Core Infrastructure
 
@@ -103,8 +103,9 @@ Latest wrapper additions: August 14, 2026 (`wnCBBTC`, `wnXAUT0`)
 | loAZND   | `0xD786F7569C39A9F64E6A54Eb77db21364E90F279` | `wnLOAZND`   | Wrapped Neverland loAZND   | 18       |
 | cbBTC    | `0x98a297e6424787E57Af119949d7E00b721F832BB` | `wnCBBTC`    | Wrapped Neverland cbBTC    | 8        |
 | XAUt0    | `0x22139A346b6312EB0A9812C67CfCe4A694676d59` | `wnXAUT0`    | Wrapped Neverland XAUt0    | 6        |
+| hMON     | `0x153bDD03C6040B99AEb1aAEcc36eA5BE194edF55` | `wnHMON`     | Wrapped Neverland hMON     | 18       |
 
-All 13 pool reserves are wrapped. The wrapper name comes from the underlying symbol and the wrapper symbol from the nToken symbol, both applied by the factory at creation.
+All 14 pool reserves are wrapped. The wrapper name comes from the underlying symbol and the wrapper symbol from the nToken symbol, both applied by the factory at creation.
 
 ### Wrapping a Newly Listed Reserve
 
